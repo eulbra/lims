@@ -1,0 +1,13 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #f0f2f5;
+}
+#root { min-height: 100vh; }
+
+/* Override Ant Design table hover */
+.ant-table-row:hover { cursor: pointer; }
+
+/* Smooth transitions */
+.ant-layout-sider { transition: width 0.2s ease; }

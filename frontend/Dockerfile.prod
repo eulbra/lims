@@ -1,0 +1,30 @@
+# Multi-stage Dockerfile for Vite frontend
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json ./
+RUN npm ci --frozen-lockfile
+
+# Copy source
+COPY . .
+
+# Build-time variable (injected via docker-compose prod args)
+ARG VITE_API_URL=/api/v1
+ENV VITE_API_URL=${VITE_API_URL}
+
+# Build production bundle → /app/dist
+RUN npm run build
+
+# ── Production stage ──
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy built assets
+COPY --from=builder /app/dist /app/dist
+
+# We use a volume mount in docker-compose to share dist with nginx
+# This stage just needs to exist so the build completes
+CMD ["echo", "Frontend build complete - dist files shared via volume"]

@@ -1,0 +1,84 @@
+"""Report views."""
+from django.db import transaction
+from rest_framework import viewsets, status, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import OrderingFilter
+from django.utils import timezone
+from .models import ReportTemplate, Report, ElectronicSignature
+from .serializers import ReportTemplateSerializer, ReportSerializer, ReportListSerializer
+
+
+class ReportTemplateViewSet(viewsets.ModelViewSet):
+    """Manage report templates."""
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = ReportTemplateSerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ["is_active"]
+
+    def get_queryset(self):
+        qs = ReportTemplate.objects.all()
+        if self.request.user.site_id:
+            qs = qs.filter(site=self.request.user.site)
+        return qs.filter(is_active=True)
+
+
+class ReportViewSet(viewsets.ModelViewSet):
+    """Manage reports with 21 CFR Part 11 workflow."""
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ["status"]
+    ordering_fields = ["created_at", "updated_at", "verified_at"]
+
+    def get_queryset(self):
+        qs = Report.objects.all()
+        if self.request.user.site_id:
+            qs = qs.filter(site=self.request.user.site)
+        return qs
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return ReportListSerializer
+        return ReportSerializer
+
+    @action(detail=True, methods=["post"])
+    def review(self, request, pk=None):
+        report = self.get_object()
+        report.status = "REVIEWED"
+        report.reviewed_by = request.user
+        report.reviewed_at = timezone.now()
+        report.save(update_fields=["status", "reviewed_by", "reviewed_at"])
+        return Response({"status": "REVIEWED"})
+
+    @action(detail=True, methods=["post"])
+    def verify(self, request, pk=None):
+        report = self.get_object()
+        report.status = "VERIFIED"
+        report.verified_by = request.user
+        report.verified_at = timezone.now()
+        report.save(update_fields=["status", "verified_by", "verified_at"])
+        return Response({"status": "VERIFIED"})
+
+    @action(detail=True, methods=["post"])
+    def sign(self, request, pk=None):
+        report = self.get_object()
+        password = request.data.get("password")
+        if not password:
+            return Response({"error": "Password required"}, status=400)
+        if not request.user.check_password(password):
+            return Response({"error": "Invalid password"}, status=401)
+        report.status = "SIGNED"
+        report.signed_by = request.user
+        report.signed_at = timezone.now()
+        ElectronicSignature.objects.create(report=report, user=request.user, ip=request.META.get("REMOTE_ADDR", ""))
+        report.save(update_fields=["status", "signed_by", "signed_at"])
+        return Response({"status": "SIGNED"})
+
+    @action(detail=True, methods=["post"])
+    def release(self, request, pk=None):
+        report = self.get_object()
+        report.status = "RELEASED"
+        report.released_at = timezone.now()
+        report.save(update_fields=["status", "released_at"])
+        return Response({"status": "RELEASED"})

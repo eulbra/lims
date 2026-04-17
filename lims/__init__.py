@@ -1,0 +1,1 @@
+# LIMS Application Configuration

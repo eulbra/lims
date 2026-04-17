@@ -1,0 +1,30 @@
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+python_files = ["test_*.py"]
+testpaths = ["lims/tests"]
+addopts = "--cov=lims --cov-report=html --cov-report=term-missing -v"
+
+[tool.black]
+line-length = 119
+target-version = ["py312"]
+include = "\.pyi?$"
+
+[tool.ruff]
+line-length = 119
+target-version = "py312"
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["mypy_django_plugin.main"]
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.coverage.run]
+source = ["lims"]
+omit = ["*/migrations/*", "*/tests/*", "*/config/settings/*"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]

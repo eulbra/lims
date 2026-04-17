@@ -1,0 +1,110 @@
+version: "3.9"
+
+services:
+  web:
+    build:
+      context: ../..
+      dockerfile: lims/docker/Dockerfile.web
+    command: gunicorn lims.config.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 2 --timeout 120 --access-logfile - --error-logfile -
+    volumes:
+      - staticfiles:/app/staticfiles
+      - media:/app/media
+    env_file: ../../.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - lims-network
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: lims/docker/Dockerfile.worker
+    volumes:
+      - media:/app/media
+    env_file: ../../.env
+    command: celery -A lims.celery_app worker --loglevel=info --concurrency=4
+    depends_on:
+      - db
+      - redis
+    networks:
+      - lims-network
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: ../..
+      dockerfile: lims/docker/Dockerfile.worker
+    env_file: ../../.env
+    command: celery -A lims.celery_app beat --loglevel=info
+    depends_on:
+      - redis
+    networks:
+      - lims-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    env_file: ../../.env
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - lims-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    networks:
+      - lims-network
+    restart: unless-stopped
+
+  frontend-builder:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+    volumes:
+      - frontend-dist:/app/dist
+    networks:
+      - lims-network
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - frontend-dist:/frontend/dist:ro
+      - staticfiles:/staticfiles:ro
+      - media:/media:ro
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - web
+      - frontend-builder
+    networks:
+      - lims-network
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  staticfiles:
+  media:
+  frontend-dist:
+
+networks:
+  lims-network:
+    driver: bridge
