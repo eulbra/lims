@@ -4,9 +4,11 @@ from rest_framework.routers import DefaultRouter
 from .views import SampleViewSet, SampleTypeViewSet, TestPanelViewSet
 
 router = DefaultRouter()
-router.register("", SampleViewSet, basename="sample")
+# IMPORTANT: Register specific prefixes BEFORE "" (empty) to prevent
+# the DefaultRouter's greedy pk pattern from capturing them as lookups
 router.register("types", SampleTypeViewSet, basename="sampletype")
 router.register("panels", TestPanelViewSet, basename="testpanel")
+router.register("", SampleViewSet, basename="sample")
 
 app_name = "samples"
 

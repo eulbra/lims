@@ -146,11 +146,11 @@ export default function Samples() {
   const handleReceive = async (values: Record<string, unknown>) => {
     setSubmitting(true);
     try {
-      // Map sample type code to UUID (from the Select options below)
+      // Map sample type code to UUID
       const typeMap: Record<string, string> = {
-        "plasma-cfdna": "1e28b9b6-4aea-427f-a00b-0779dabe9a9e",
-        "cervical-swab": "d60a8024-e80a-4d92-b850-b0116cfed9e6",
-        "lbc": "22b07a6e-4472-4e8f-bba4-2e2fb0602c41",
+        "plasma-cfdna": "1e28b9b64aea427fa00b0779dabe9a9e",
+        "cervical-swab": "d60a8024e80a4d92b850b0116cfed9e6",
+        "lbc": "22b07a6e44724e8fbba42e2fb0602c41",
       };
       const sampleTypeId = typeMap[values.sample_type_id as string];
       if (!sampleTypeId) {
@@ -160,8 +160,18 @@ export default function Samples() {
       }
 
       const now = new Date();
+      // Serialize DatePicker (Dayjs) to ISO date string
+      const collectionDate = values.collection_date
+        ? (values.collection_date as dayjs.Dayjs).format("YYYY-MM-DD")
+        : null;
+
       await samplesApi.create({
-        ...values,
+        patient_id: values.patient_id || "",
+        patient_name: (values.patient_name as string) || "",
+        ordering_physician: (values.ordering_physician as string) || "",
+        ordering_facility: (values.ordering_facility as string) || "",
+        collection_date: collectionDate,
+        receipt_temp: (values.receipt_temp as string) || "",
         sample_type_id: sampleTypeId,
         receipt_date: now.toISOString().split("T")[0],
         receipt_time: now.toTimeString().split(" ")[0],
