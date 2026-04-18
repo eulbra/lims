@@ -148,9 +148,9 @@ export default function Samples() {
     try {
       // Map sample type code to UUID
       const typeMap: Record<string, string> = {
-        "plasma-cfdna": "1e28b9b64aea427fa00b0779dabe9a9e",
-        "cervical-swab": "d60a8024e80a4d92b850b0116cfed9e6",
-        "lbc": "22b07a6e44724e8fbba42e2fb0602c41",
+        "plasma-cfdna": "d64f2a8f-19ce-47f4-8a92-9bbc3019e52c",
+        "cervical-swab": "326ae28b-6a71-4ec6-b816-c1cb2d93a484",
+        "lbc": "4c30b9d5-9d17-45f0-bc7c-7bee88d1f5c6",
       };
       const sampleTypeId = typeMap[values.sample_type_id as string];
       if (!sampleTypeId) {
