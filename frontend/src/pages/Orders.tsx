@@ -39,7 +39,9 @@ export default function Orders() {
   // Fetch panels for dropdown
   useEffect(() => {
     panelsApi.list().then(res => {
-      setPanels(res.data || []);
+      // Handle DRF pageable response: { count, results: [...] }
+      const data = (res.data as any).results || res.data || [];
+      setPanels(Array.isArray(data) ? data : []);
     }).catch(() => setPanels([]));
   }, []);
 
