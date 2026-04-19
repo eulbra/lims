@@ -29,6 +29,8 @@ api_v1_patterns = [
     path("documents/", include("lims.apps.documents.urls", namespace="documents")),
     path("training/", include("lims.apps.training.urls", namespace="training")),
     path("audit/", include("lims.apps.audit.urls", namespace="audit")),
+    path("notifications/", include("lims.apps.notifications.urls", namespace="notifications")),
+    path("quality/", include("lims.apps.quality.urls", namespace="quality")),
 ]
 
 urlpatterns = [
