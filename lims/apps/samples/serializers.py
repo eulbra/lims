@@ -37,7 +37,9 @@ class SampleSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = self.context["request"].user
         validated_data["created_by"] = user
-        validated_data["site"] = user.site or self._get_default_site()
+        # Get site - handle both Site instance and None
+        user_site = getattr(user, 'site', None)
+        validated_data["site"] = user_site if user_site else self._get_default_site()
         # Auto-generate barcode if not provided
         if not validated_data.get("barcode"):
             validated_data["barcode"] = self._generate_barcode()
@@ -90,7 +92,9 @@ class SampleReceiveSerializer(serializers.Serializer):
         user = self.context["request"].user
         now = datetime.datetime.now()
         validated_data["created_by"] = user
-        validated_data["site"] = user.site or self._get_default_site()
+        # Get site - handle both Site instance and None
+        user_site = getattr(user, 'site', None)
+        validated_data["site"] = user_site if user_site else self._get_default_site()
         # Auto-generate barcode
         validated_data["barcode"] = self._generate_barcode()
         # Set receipt date/time defaults

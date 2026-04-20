@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Table, Card, Button, Space, Tag, Typography, Input,
   Modal, Form, Select, message, Tooltip, DatePicker,
@@ -36,11 +36,16 @@ export default function Samples() {
   const [rejectSample, setRejectSample] = useState<Sample | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const fetchSamples = useCallback(
+    ({ page, size, search, ordering }: { page: number; size: number; search?: string; ordering?: string }) =>
+      samplesApi.list({ page, size, search, ordering }),
+    []
+  );
+
   const { items, total, page, loading, fetch, setPage, setSearch, search } =
     usePaginated(
-      ({ page, size, search }) =>
-        samplesApi.list({ page, size, search, ordering: "-receipt_date" }),
-      { autoFetch: true }
+      fetchSamples,
+      { autoFetch: true, ordering: "-receipt_date" }
     );
 
   const columns = [
