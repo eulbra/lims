@@ -25,8 +25,18 @@ class SampleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Sample
-        fields = "__all__"
-        read_only_fields = ["barcode", "transport_time_days", "status", "site", "created_by"]
+        fields = [
+            "id", "barcode", "additional_barcodes", "sample_type", "sample_type_id",
+            "patient_id", "patient_name", "patient_dob", "patient_sex",
+            "ordering_physician", "ordering_facility",
+            "collection_date", "collection_time",
+            "receipt_date", "receipt_time", "receipt_temp", "transport_time_days",
+            "status", "rejection_reason", "rejection_note",
+            "consent_given", "consent_date",
+            "site", "site_id", "created_by", "created_at", "updated_at", "is_deleted",
+            "movements_count",
+        ]
+        read_only_fields = ["barcode", "transport_time_days", "status", "site", "created_by", "movements_count"]
 
     def get_site_id(self, obj):
         return str(obj.site_id) if obj.site else None
@@ -37,10 +47,8 @@ class SampleSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = self.context["request"].user
         validated_data["created_by"] = user
-        # Get site - handle both Site instance and None
         user_site = getattr(user, 'site', None)
         validated_data["site"] = user_site if user_site else self._get_default_site()
-        # Auto-generate barcode if not provided
         if not validated_data.get("barcode"):
             validated_data["barcode"] = self._generate_barcode()
         return super().create(validated_data)
@@ -74,35 +82,54 @@ class SampleListSerializer(serializers.ModelSerializer):
         return None
 
 
-class SampleReceiveSerializer(serializers.Serializer):
+class SampleReceiveSerializer(serializers.ModelSerializer):
     """Serializer for sample receipt (create + auto-barcode)."""
-    sample_type_id = serializers.UUIDField()
-    patient_id = serializers.CharField(max_length=50, required=False, allow_blank=True)
-    patient_name = serializers.CharField(max_length=200, required=False, allow_blank=True)
-    patient_dob = serializers.DateField(required=False, allow_null=True)
-    patient_sex = serializers.CharField(max_length=1, required=False, allow_blank=True)
-    ordering_physician = serializers.CharField(max_length=200, required=False, allow_blank=True)
-    ordering_facility = serializers.CharField(max_length=200, required=False, allow_blank=True)
-    collection_date = serializers.DateField()
-    collection_time = serializers.TimeField(required=False, allow_null=True)
-    receipt_temp = serializers.CharField(max_length=10, required=False, allow_blank=True, default="")
-    consent_given = serializers.BooleanField(required=False, allow_null=True)
+    sample_type_id = serializers.UUIDField(write_only=True)
+
+    class Meta:
+        model = Sample
+        fields = [
+            "sample_type_id", "patient_id", "patient_name", "patient_dob",
+            "patient_sex", "ordering_physician", "ordering_facility",
+            "collection_date", "collection_time", "receipt_temp", "consent_given",
+            "receipt_date", "receipt_time",
+        ]
+        extra_kwargs = {
+            "collection_date": {"required": False},
+            "collection_time": {"required": False, "allow_null": True},
+            "receipt_date": {"required": False},
+            "receipt_time": {"required": False},
+            "patient_dob": {"required": False, "allow_null": True},
+            "patient_sex": {"required": False, "allow_blank": True},
+            "ordering_physician": {"required": False, "allow_blank": True},
+            "ordering_facility": {"required": False, "allow_blank": True},
+            "receipt_temp": {"required": False, "allow_blank": True},
+            "consent_given": {"required": False, "allow_null": True},
+        }
 
     def create(self, validated_data):
         user = self.context["request"].user
         now = datetime.datetime.now()
-        validated_data["created_by"] = user
-        # Get site - handle both Site instance and None
-        user_site = getattr(user, 'site', None)
-        validated_data["site"] = user_site if user_site else self._get_default_site()
+
+        # Pop write-only fields
+        sample_type_id = validated_data.pop("sample_type_id", None)
+
+        # Set receipt date/time defaults if not provided
+        if "receipt_date" not in validated_data or validated_data.get("receipt_date") is None:
+            validated_data["receipt_date"] = now.date()
+        if "receipt_time" not in validated_data or validated_data.get("receipt_time") is None:
+            validated_data["receipt_time"] = now.time()
+
         # Auto-generate barcode
         validated_data["barcode"] = self._generate_barcode()
-        # Set receipt date/time defaults
-        if "receipt_date" not in validated_data:
-            validated_data["receipt_date"] = now.date()
-        if "receipt_time" not in validated_data:
-            validated_data["receipt_time"] = now.time()
-        return Sample.objects.create(**validated_data)
+
+        # Set site from user
+        user_site = getattr(user, 'site', None)
+        validated_data["site"] = user_site if user_site else self._get_default_site()
+        validated_data["created_by"] = user
+
+        # Create sample with sample_type_id passed directly to the FK
+        return Sample.objects.create(sample_type_id=sample_type_id, **validated_data)
 
     def _generate_barcode(self):
         today = datetime.date.today().strftime("%Y%m%d")
@@ -110,7 +137,6 @@ class SampleReceiveSerializer(serializers.Serializer):
         return f"SMP-{today}-{count:04d}"
 
     def _get_default_site(self):
-        """Get first available site for users without site assignment (e.g. super admins)."""
         from lims.apps.organizations.models import Site
         return Site.objects.filter(is_active=True).first()
 

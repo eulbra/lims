@@ -92,7 +92,7 @@ class Sample(models.Model):
     rejection_note = models.TextField(blank=True)
     consent_given = models.BooleanField(null=True, blank=True)
     consent_date = models.DateField(null=True, blank=True)
-    site = models.ForeignKey("organizations.Site", on_delete=models.PROTECT, related_name="samples")
+    site = models.ForeignKey("organizations.Site", on_delete=models.PROTECT, related_name="samples", null=True, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
