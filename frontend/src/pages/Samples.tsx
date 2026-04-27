@@ -186,11 +186,13 @@ export default function Samples() {
       setRejectSample(null);
       fetch();
     } catch (e: any) {
-      if (e?.response?.data) {
+      if (e?.errorFields) {
+        message.error("Please select a rejection reason");
+      } else if (e?.response?.data) {
         const detail = e.response.data;
         const msgs = Object.entries(detail).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
         message.error(msgs.join("; "));
-      } else if (e instanceof Error && !(e as any).errorFields) {
+      } else if (e instanceof Error) {
         message.error("Failed to reject sample");
       }
     }
