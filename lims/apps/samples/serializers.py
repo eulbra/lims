@@ -69,11 +69,14 @@ class SampleListSerializer(serializers.ModelSerializer):
     sample_type_code = serializers.CharField(source="sample_type.code", read_only=True)
     panel_info = serializers.SerializerMethodField()
     patient_name = serializers.CharField(read_only=True)
+    ordering_physician = serializers.CharField(read_only=True)
+    ordering_facility = serializers.CharField(read_only=True)
 
     class Meta:
         model = Sample
         fields = ["id", "barcode", "sample_type_code", "patient_id", "patient_name", "status",
-                   "receipt_date", "collection_date", "panel_info", "created_at"]
+                   "receipt_date", "collection_date", "panel_info", "created_at",
+                   "ordering_physician", "ordering_facility"]
 
     def get_panel_info(self, obj):
         if obj.panel_id:

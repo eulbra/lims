@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Table, Card, Button, Space, Tag, Typography, Input,
   Modal, Form, Select, message, Tooltip, DatePicker,
@@ -37,6 +37,12 @@ const STATUS_OPTIONS = [
   { value: "REPORTED", label: "Reported" },
 ];
 
+const SAMPLE_TYPE_OPTIONS = [
+  { value: "d64f2a8f-19ce-47f4-8a92-9bbc3019e52c", label: "Maternal Plasma (cfDNA)" },
+  { value: "326ae28b-6a71-4ec6-b816-c1cb2d93a484", label: "Cervical Swab" },
+  { value: "4c30b9d5-9d17-45f0-bc7c-7bee88d1f5c6", label: "Liquid-Based Cytology" },
+];
+
 export default function Samples() {
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
@@ -48,24 +54,26 @@ export default function Samples() {
   const [rejectSample, setRejectSample] = useState<Sample | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [panels, setPanels] = useState<{ id: string; code: string; name: string }[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
-  const fetchSamples = useCallback(
-    ({ page, size, search, ordering }: { page: number; size: number; search?: string; ordering?: string }) => {
-      const params: Record<string, unknown> = { page, size, search, ordering };
-      if (statusFilter) params.status = statusFilter;
-      return samplesApi.list(params);
-    },
-    [statusFilter]
-  );
+  // ── Filters ──────────────────────────────────────────────────
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [panelFilter, setPanelFilter] = useState<string | null>(null);
+  const [sampleTypeFilter, setSampleTypeFilter] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
+
+  const filters: Record<string, unknown> = {};
+  if (statusFilter) filters.status = statusFilter;
+  if (panelFilter) filters.panel = panelFilter;
+  if (sampleTypeFilter) filters.sample_type = sampleTypeFilter;
+  if (dateFilter) filters.receipt_date = dateFilter;
 
   const { items, total, page, loading, fetch, setPage, setSearch, search } =
     usePaginated(
-      fetchSamples,
-      { autoFetch: true, ordering: "-receipt_date" }
+      samplesApi.list,
+      { autoFetch: true, ordering: "-receipt_date", filters }
     );
 
-  // Load panels for receive form
+  // Load panels for receive form + filter
   useEffect(() => {
     panelsApi.list().then(res => {
       const data = (res.data as any).results || res.data || [];
@@ -276,8 +284,8 @@ export default function Samples() {
     <DashboardLayout header="Samples">
       {/* ── Toolbar ────────────────────────────────────────── */}
       <Card size="small" style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Space>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <Space wrap>
             <Search
               placeholder="Search barcode or patient ID..."
               prefix={<SearchOutlined />}
@@ -288,12 +296,36 @@ export default function Samples() {
               allowClear
             />
             <Select
-              placeholder="Filter by status"
+              placeholder="Status"
               allowClear
-              style={{ width: 160 }}
+              style={{ width: 140 }}
               options={STATUS_OPTIONS}
               value={statusFilter}
-              onChange={(v) => { setStatusFilter(v); setPage(1); fetch(); }}
+              onChange={(v) => setStatusFilter(v)}
+            />
+            <Select
+              placeholder="Panel"
+              allowClear
+              style={{ width: 180 }}
+              options={panels.map(p => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
+              value={panelFilter}
+              onChange={(v) => setPanelFilter(v)}
+            />
+            <Select
+              placeholder="Sample Type"
+              allowClear
+              style={{ width: 180 }}
+              options={SAMPLE_TYPE_OPTIONS}
+              value={sampleTypeFilter}
+              onChange={(v) => setSampleTypeFilter(v)}
+            />
+            <DatePicker
+              placeholder="Receipt date"
+              style={{ width: 140 }}
+              format="YYYY-MM-DD"
+              value={dateFilter ? dayjs(dateFilter) : null}
+              onChange={(d) => setDateFilter(d ? d.format("YYYY-MM-DD") : null)}
+              allowClear
             />
             <Button
               icon={<ReloadOutlined />}

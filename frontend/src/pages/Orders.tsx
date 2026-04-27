@@ -4,6 +4,7 @@ import { PlusOutlined, SearchOutlined, ReloadOutlined, FileAddOutlined, CheckOut
 import DashboardLayout from "../components/DashboardLayout";
 import { ordersApi, panelsApi, samplesApi } from "../api";
 import type { Order, TestPanel, Sample } from "../api/types";
+import { usePaginated } from "../hooks/useList";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -31,31 +32,22 @@ export default function Orders() {
   const [form] = Form.useForm();
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
   const [panels, setPanels] = useState<TestPanel[]>([]);
   const [samples, setSamples] = useState<Sample[]>([]);
+
+  // ── Filters ──────────────────────────────────────────────────
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [panelFilter, setPanelFilter] = useState<string | null>(null);
 
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const params: Record<string, unknown> = { page, size: 50, ordering: "-created_at" };
-      if (statusFilter) params.status = statusFilter;
-      const res = await ordersApi.list(params);
-      setOrders(res.data.results || []);
-      setTotal(res.data.count || 0);
-    } catch {
-      setOrders([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const filters: Record<string, unknown> = {};
+  if (statusFilter) filters.status = statusFilter;
+  if (panelFilter) filters.panel = panelFilter;
 
-  useEffect(() => { fetchOrders(); }, [page, statusFilter]);
+  const { items, total, page, loading, fetch, setPage, setSearch, search } =
+    usePaginated(
+      ordersApi.list,
+      { autoFetch: true, ordering: "-created_at", filters }
+    );
 
   useEffect(() => {
     panelsApi.list().then(res => {
@@ -113,7 +105,7 @@ export default function Orders() {
                   try {
                     await ordersApi.submit(record.id);
                     message.success("Order started");
-                    fetchOrders();
+                    fetch();
                   } catch { message.error("Failed to start order"); }
                 }} />
             </Tooltip>
@@ -126,7 +118,7 @@ export default function Orders() {
                   try {
                     await ordersApi.complete(record.id);
                     message.success("Order completed");
-                    fetchOrders();
+                    fetch();
                   } catch { message.error("Failed to complete order"); }
                 }} />
             </Tooltip>
@@ -138,7 +130,7 @@ export default function Orders() {
                   try {
                     await ordersApi.cancel(record.id);
                     message.warning("Order cancelled");
-                    fetchOrders();
+                    fetch();
                   } catch { message.error("Failed to cancel order"); }
                 }} />
             </Tooltip>
@@ -156,7 +148,7 @@ export default function Orders() {
       setModalOpen(false);
       form.resetFields();
       setSamples([]);
-      fetchOrders();
+      fetch();
     } catch (err: any) {
       const detail = err?.response?.data;
       if (detail && typeof detail === "object") {
@@ -173,18 +165,30 @@ export default function Orders() {
   return (
     <DashboardLayout header="Orders">
       <Card size="small" style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Space>
-            <Search placeholder="Search order #, patient..." prefix={<SearchOutlined />} style={{ width: 280 }} allowClear />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <Space wrap>
+            <Search placeholder="Search order #, patient..." prefix={<SearchOutlined />} style={{ width: 280 }} allowClear
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onSearch={() => fetch()}
+            />
             <Select
-              placeholder="Filter by status"
+              placeholder="Status"
               allowClear
-              style={{ width: 160 }}
+              style={{ width: 140 }}
               options={STATUS_OPTIONS}
               value={statusFilter}
-              onChange={(v) => { setStatusFilter(v); setPage(1); }}
+              onChange={(v) => setStatusFilter(v)}
             />
-            <Button icon={<ReloadOutlined />} onClick={fetchOrders}>Refresh</Button>
+            <Select
+              placeholder="Panel"
+              allowClear
+              style={{ width: 180 }}
+              options={panels.map(p => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
+              value={panelFilter}
+              onChange={(v) => setPanelFilter(v)}
+            />
+            <Button icon={<ReloadOutlined />} onClick={() => fetch()}>Refresh</Button>
           </Space>
           <Space>
             <Text type="secondary">{total} total</Text>
@@ -196,7 +200,7 @@ export default function Orders() {
       </Card>
 
       <Card>
-        <Table columns={columns} dataSource={orders} rowKey="id" loading={loading}
+        <Table columns={columns} dataSource={items} rowKey="id" loading={loading}
           pagination={{ current: page, pageSize: 50, total, showSizeChanger: false, onChange: setPage, showTotal: (t) => `Total ${t} orders` }}
           locale={{ emptyText: "No orders yet. Click \"New Order\" to get started." }}
         />

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { Pageable } from "../api/types";
 
 interface UseListOptions<T> {
@@ -65,10 +65,10 @@ export function useList<T>(options: UseListOptions<T>): UseListReturn<T> {
 }
 
 export function usePaginated<T>(
-  fetchFn: (params: { page: number; size: number; search?: string; ordering?: string }) => Promise<{ data: Pageable<T> }>,
-  options?: { autoFetch?: boolean; ordering?: string }
+  fetchFn: (params: Record<string, unknown>) => Promise<{ data: Pageable<T> }>,
+  options?: { autoFetch?: boolean; ordering?: string; filters?: Record<string, unknown> }
 ) {
-  const { autoFetch = true, ordering } = options || {};
+  const { autoFetch = true, ordering, filters = {} } = options || {};
 
   const [items, setItems] = useState<T[]>([]);
   const [total, setTotal] = useState(0);
@@ -76,24 +76,48 @@ export function usePaginated<T>(
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
-  const fetch = useCallback(async (p = page, s = search) => {
+  // Track latest request to avoid race conditions
+  const reqIdRef = useRef(0);
+
+  const fetch = useCallback(async (p?: number, s?: string) => {
+    const currentPage = p ?? page;
+    const currentSearch = s ?? search;
+    const reqId = ++reqIdRef.current;
+
     setLoading(true);
     try {
-      const { data } = await fetchFn({ page: p, size: 50, search: s || undefined, ordering });
-      setItems(data.results);
-      setTotal(data.count);
-      setPage(p);
-      setSearch(s);
+      const params: Record<string, unknown> = {
+        page: currentPage,
+        size: 50,
+        ordering,
+        ...filters,
+      };
+      if (currentSearch) params.search = currentSearch;
+      const { data } = await fetchFn(params);
+      if (reqId === reqIdRef.current) {
+        setItems(data.results);
+        setTotal(data.count);
+        setPage(currentPage);
+        setSearch(currentSearch);
+      }
     } catch {
       /* error handled by caller */
     } finally {
-      setLoading(false);
+      if (reqId === reqIdRef.current) {
+        setLoading(false);
+      }
     }
-  }, [fetchFn, page, search, ordering]);
+  }, [fetchFn, ordering, filters, page, search]);
 
+  // Auto-fetch when page or search changes
   useEffect(() => {
-    if (autoFetch) fetch();
-  }, [fetch, autoFetch]);
+    if (autoFetch) fetch(page, search);
+  }, [fetch, autoFetch, page, search]);
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [JSON.stringify(filters)]);
 
   return { items, total, page, loading, search, fetch, setPage, setSearch };
 }
