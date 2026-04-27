@@ -5,6 +5,7 @@ import { PlusOutlined, ReloadOutlined, EyeOutlined, ArrowRightOutlined, StepForw
 import DashboardLayout from "../components/DashboardLayout";
 import { runsApi, samplesApi, panelsApi, instrumentsApi } from "../api";
 import type { Run, Sample, TestPanel, Instrument } from "../api/types";
+import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
 
 const { Text } = Typography;
@@ -36,12 +37,16 @@ export default function Runs() {
   const [tableLoading, setTableLoading] = useState(true);
   const [runs, setRuns] = useState<Run[]>([]);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [panelFilter, setPanelFilter] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
 
   const fetchRuns = async () => {
     setTableLoading(true);
     try {
       const params: Record<string, unknown> = {};
       if (statusFilter) params.status = statusFilter;
+      if (panelFilter) params.panel = panelFilter;
+      if (dateFilter) params.planned_date = dateFilter;
       const res = await runsApi.list(params);
       setRuns(res.data.results ?? res.data);
     } catch {
@@ -51,7 +56,7 @@ export default function Runs() {
     }
   };
 
-  useEffect(() => { fetchRuns(); }, [statusFilter]);
+  useEffect(() => { fetchRuns(); }, [statusFilter, panelFilter, dateFilter]);
 
   // ── Samples Transfer ───────────────────────────────────────
   const [availableSamples, setAvailableSamples] = useState<TransferItem[]>([]);
@@ -222,7 +227,7 @@ export default function Runs() {
     <DashboardLayout header="Sequencing Runs">
       <Card size="small" style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Space>
+          <Space wrap>
             <Input.Search placeholder="Search run number..." style={{ width: 250 }} allowClear />
             <Select
               placeholder="Filter by status"
@@ -231,6 +236,22 @@ export default function Runs() {
               options={STATUS_OPTIONS}
               value={statusFilter}
               onChange={(v) => setStatusFilter(v)}
+            />
+            <Select
+              placeholder="Panel"
+              allowClear
+              style={{ width: 180 }}
+              options={panels.map(p => ({ value: p.id, label: `${p.code} — ${p.name}` }))}
+              value={panelFilter}
+              onChange={(v) => setPanelFilter(v)}
+            />
+            <DatePicker
+              placeholder="Planned date"
+              style={{ width: 140 }}
+              format="YYYY-MM-DD"
+              value={dateFilter ? dayjs(dateFilter) : null}
+              onChange={(d) => setDateFilter(d ? d.format("YYYY-MM-DD") : null)}
+              allowClear
             />
             <Button icon={<ReloadOutlined />} onClick={fetchRuns}>Refresh</Button>
           </Space>

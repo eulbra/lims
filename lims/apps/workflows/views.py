@@ -29,7 +29,7 @@ class SampleRunViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     search_fields = ["run_number"]
-    filterset_fields = ["status", "panel"]
+    filterset_fields = ["status", "panel", "planned_date"]
     ordering_fields = ["created_at", "planned_date"]
 
     def get_queryset(self):

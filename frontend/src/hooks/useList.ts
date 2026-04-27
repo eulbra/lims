@@ -119,7 +119,10 @@ export function usePaginated<T>(
   const filtersKey = JSON.stringify(filters);
   useEffect(() => {
     setPage(1);
-  }, [filtersKey]);
+    // Must explicitly fetch even if page was already 1
+    if (autoFetch) fetch(1, search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey, autoFetch]);
 
   return { items, total, page, loading, search, fetch, setPage, setSearch };
 }

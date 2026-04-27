@@ -19,7 +19,7 @@ class SampleViewSet(viewsets.ModelViewSet):
     """CRUD + actions for samples."""
     permission_classes = [IsAuthenticated, IsSiteScoped]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["status", "sample_type", "receipt_date"]
+    filterset_fields = ["status", "sample_type", "receipt_date", "panel"]
     search_fields = ["barcode", "patient_id", "patient_name"]
     ordering_fields = ["receipt_date", "created_at", "barcode"]
 
