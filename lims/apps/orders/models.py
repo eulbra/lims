@@ -16,6 +16,13 @@ class Order(models.Model):
     patient_sex = models.CharField(max_length=1, choices=[("M","M"),("F","F"),("O","O")], blank=True)
     urgency = models.CharField(max_length=10, default="ROUTINE", choices=[("ROUTINE","Routine"),("STAT","STAT"),("RESEARCH","Research")])
     clinical_notes = models.TextField(blank=True)
+    sample = models.ForeignKey(
+        "samples.Sample",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="orders",
+    )
     status = models.CharField(max_length=20, default="CREATED", choices=[
         ("CREATED","Created"),("SAMPLED","Sampled"),("IN_PROGRESS","In Progress"),
         ("COMPLETED","Completed"),("REPORTED","Reported"),("CANCELLED","Cancelled"),

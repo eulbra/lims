@@ -31,9 +31,31 @@ class OrderViewSet(viewsets.ModelViewSet):
         return OrderSerializer
 
     @action(detail=True, methods=["post"])
-    def create_sample(self, request, pk=None):
-        """Create a sample linked to this order."""
+    def submit(self, request, pk=None):
+        """Submit order for processing."""
         order = self.get_object()
-        order.status = "SAMPLED"
+        if order.status != "CREATED":
+            return Response({"error": "Only CREATED orders can be submitted"}, status=400)
+        order.status = "IN_PROGRESS"
         order.save(update_fields=["status", "updated_at"])
-        return Response({"message": f"Sample can now be linked to order {order.order_number}"})
+        return Response({"status": order.status, "order_number": order.order_number})
+
+    @action(detail=True, methods=["post"])
+    def complete(self, request, pk=None):
+        """Mark order as completed."""
+        order = self.get_object()
+        if order.status not in ["CREATED", "SAMPLED", "IN_PROGRESS"]:
+            return Response({"error": "Order cannot be completed from current status"}, status=400)
+        order.status = "COMPLETED"
+        order.save(update_fields=["status", "updated_at"])
+        return Response({"status": order.status, "order_number": order.order_number})
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        """Cancel an order."""
+        order = self.get_object()
+        if order.status in ["COMPLETED", "REPORTED", "CANCELLED"]:
+            return Response({"error": "Order cannot be cancelled"}, status=400)
+        order.status = "CANCELLED"
+        order.save(update_fields=["status", "updated_at"])
+        return Response({"status": order.status, "order_number": order.order_number})

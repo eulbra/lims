@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message } from "antd";
-import { PlusOutlined, SearchOutlined, ReloadOutlined, FileAddOutlined } from "@ant-design/icons";
+import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message, Tooltip } from "antd";
+import { PlusOutlined, SearchOutlined, ReloadOutlined, FileAddOutlined, CheckOutlined, CloseOutlined, PlayCircleOutlined } from "@ant-design/icons";
 import DashboardLayout from "../components/DashboardLayout";
-import { ordersApi, panelsApi } from "../api";
-import type { Order, TestPanel } from "../api/types";
+import { ordersApi, panelsApi, samplesApi } from "../api";
+import type { Order, TestPanel, Sample } from "../api/types";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -18,8 +18,8 @@ export default function Orders() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [panels, setPanels] = useState<TestPanel[]>([]);
+  const [samples, setSamples] = useState<Sample[]>([]);
 
-  // Fetch orders on mount
   const fetchOrders = async () => {
     setLoading(true);
     try {
@@ -36,14 +36,26 @@ export default function Orders() {
 
   useEffect(() => { fetchOrders(); }, [page]);
 
-  // Fetch panels for dropdown
   useEffect(() => {
     panelsApi.list().then(res => {
-      // Handle DRF pageable response: { count, results: [...] }
       const data = (res.data as any).results || res.data || [];
       setPanels(Array.isArray(data) ? data : []);
     }).catch(() => setPanels([]));
   }, []);
+
+  const searchSamples = async (q: string) => {
+    if (!q || q.length < 2) {
+      setSamples([]);
+      return;
+    }
+    try {
+      const res = await samplesApi.list({ search: q, page: 1, size: 20 });
+      const data = (res.data as any).results || res.data || [];
+      setSamples(Array.isArray(data) ? data : []);
+    } catch {
+      setSamples([]);
+    }
+  };
 
   const STATUS_COLORS: Record<string, string> = {
     CREATED: "default", SAMPLED: "blue", IN_PROGRESS: "gold",
@@ -51,6 +63,15 @@ export default function Orders() {
   };
   const URGENCY_COLORS: Record<string, string> = {
     ROUTINE: "blue", STAT: "red", RESEARCH: "purple",
+  };
+
+  const handleSampleSelect = (sampleId: string) => {
+    const s = samples.find(x => x.id === sampleId);
+    if (!s) return;
+    form.setFieldsValue({
+      patient_id: s.patient_id || undefined,
+      patient_name: s.patient_name || undefined,
+    });
   };
 
   const columns = [
@@ -67,6 +88,51 @@ export default function Orders() {
       render: (s: string) => <Tag color={URGENCY_COLORS[s]}>{s}</Tag> },
     { title: "Created", dataIndex: "created_at", key: "created_at", width: 150,
       render: (d: string) => d ? new Date(d).toLocaleDateString() : "-" },
+    {
+      title: "Actions", key: "actions", width: 160,
+      render: (_: unknown, record: Order) => (
+        <Space size="small">
+          {record.status === "CREATED" && (
+            <Tooltip title="Start Processing">
+              <Button icon={<PlayCircleOutlined />} size="small" type="text"
+                style={{ color: "#1677ff" }}
+                onClick={async () => {
+                  try {
+                    await ordersApi.submit(record.id);
+                    message.success("Order started");
+                    fetchOrders();
+                  } catch { message.error("Failed to start order"); }
+                }} />
+            </Tooltip>
+          )}
+          {record.status === "IN_PROGRESS" && (
+            <Tooltip title="Complete">
+              <Button icon={<CheckOutlined />} size="small" type="text"
+                style={{ color: "#52c41a" }}
+                onClick={async () => {
+                  try {
+                    await ordersApi.complete(record.id);
+                    message.success("Order completed");
+                    fetchOrders();
+                  } catch { message.error("Failed to complete order"); }
+                }} />
+            </Tooltip>
+          )}
+          {record.status !== "COMPLETED" && record.status !== "REPORTED" && record.status !== "CANCELLED" && (
+            <Tooltip title="Cancel">
+              <Button icon={<CloseOutlined />} size="small" type="text" danger
+                onClick={async () => {
+                  try {
+                    await ordersApi.cancel(record.id);
+                    message.warning("Order cancelled");
+                    fetchOrders();
+                  } catch { message.error("Failed to cancel order"); }
+                }} />
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
   ];
 
   const handleSubmit = async (values: Record<string, unknown>) => {
@@ -76,9 +142,16 @@ export default function Orders() {
       message.success("Order created successfully");
       setModalOpen(false);
       form.resetFields();
+      setSamples([]);
       fetchOrders();
-    } catch {
-      message.error("Failed to create order");
+    } catch (err: any) {
+      const detail = err?.response?.data;
+      if (detail && typeof detail === "object") {
+        const msgs = Object.entries(detail).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+        message.error(msgs.join("; "));
+      } else {
+        message.error("Failed to create order");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -111,11 +184,26 @@ export default function Orders() {
       <Modal
         title={<span><FileAddOutlined style={{ marginRight: 8, color: "#1677ff" }} />New Test Order</span>}
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        onCancel={() => { setModalOpen(false); form.resetFields(); setSamples([]); }}
         footer={null}
         width={600}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit} style={{ marginTop: 16 }}>
+          <Form.Item name="sample_id" label="Link to Existing Sample (optional)">
+            <Select
+              showSearch
+              placeholder="Search by barcode or patient name..."
+              filterOption={false}
+              onSearch={(q) => { searchSamples(q); }}
+              onChange={handleSampleSelect}
+              options={samples.map(s => ({
+                value: s.id,
+                label: `${s.barcode} — ${s.patient_name || "N/A"} (${s.sample_type_code})`,
+              }))}
+              allowClear
+            />
+          </Form.Item>
+
           <Form.Item name="panel" label="Test Panel" rules={[{ required: true }]}>
             <Select placeholder="Select test panel" options={panels.map(p => ({
               value: p.id, label: `${p.code} — ${p.name}`,
@@ -136,7 +224,7 @@ export default function Orders() {
           <Form.Item name="ordering_physician" label="Ordering Physician" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="ordering_facility" label="Ordering Facility">
+          <Form.Item name="ordering_facility" label="Ordering Facility" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item name="clinical_notes" label="Clinical Notes">
@@ -144,7 +232,7 @@ export default function Orders() {
           </Form.Item>
           <div style={{ textAlign: "right" }}>
             <Space>
-              <Button onClick={() => setModalOpen(false)}>Cancel</Button>
+              <Button onClick={() => { setModalOpen(false); form.resetFields(); setSamples([]); }}>Cancel</Button>
               <Button type="primary" htmlType="submit" loading={submitting}>Create Order</Button>
             </Space>
           </div>

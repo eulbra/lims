@@ -51,6 +51,8 @@ export const runsApi = {
   get: (id: string) => api.get<Run>(`/runs/${id}/`),
   create: (data: Record<string, unknown>) =>
     api.post<Run>("/runs/", data),
+  advanceStatus: (id: string, status: string) =>
+    api.post(`/runs/${id}/advance_status/`, { status }),
   stats: () => api.get<RunStats>("/runs/stats/"),
 };
 
@@ -120,4 +122,7 @@ export const ordersApi = {
   get: (id: string) => api.get<Order>(`/orders/${id}/`),
   create: (data: Record<string, unknown>) =>
     api.post<Order>("/orders/", data),
+  submit: (id: string) => api.post(`/orders/${id}/submit/`),
+  complete: (id: string) => api.post(`/orders/${id}/complete/`),
+  cancel: (id: string) => api.post(`/orders/${id}/cancel/`),
 };

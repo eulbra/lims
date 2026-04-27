@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   Table, Card, Button, Space, Tag, Typography, Input,
   Modal, Form, Select, message, Tooltip, DatePicker,
@@ -8,7 +8,7 @@ import {
   ReloadOutlined, CheckOutlined, CloseOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { samplesApi } from "../api";
+import { samplesApi, panelsApi } from "../api";
 import type { Sample } from "../api/types";
 import { usePaginated } from "../hooks/useList";
 import DashboardLayout from "../components/DashboardLayout";
@@ -35,6 +35,7 @@ export default function Samples() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectSample, setRejectSample] = useState<Sample | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [panels, setPanels] = useState<{ id: string; code: string; name: string }[]>([]);
 
   const fetchSamples = useCallback(
     ({ page, size, search, ordering }: { page: number; size: number; search?: string; ordering?: string }) =>
@@ -47,6 +48,14 @@ export default function Samples() {
       fetchSamples,
       { autoFetch: true, ordering: "-receipt_date" }
     );
+
+  // Load panels for receive form
+  useEffect(() => {
+    panelsApi.list().then(res => {
+      const data = (res.data as any).results || res.data || [];
+      setPanels(Array.isArray(data) ? data : []);
+    }).catch(() => setPanels([]));
+  }, []);
 
   const columns = [
     {
@@ -140,9 +149,12 @@ export default function Samples() {
       rejectForm.resetFields();
       setRejectSample(null);
       fetch();
-    } catch (e) {
-      // validation error is already handled by antd, only show for API errors
-      if (e instanceof Error && !(e as any).errorFields) {
+    } catch (e: any) {
+      if (e?.response?.data) {
+        const detail = e.response.data;
+        const msgs = Object.entries(detail).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+        message.error(msgs.join("; "));
+      } else if (e instanceof Error && !(e as any).errorFields) {
         message.error("Failed to reject sample");
       }
     }
@@ -178,6 +190,7 @@ export default function Samples() {
         collection_date: collectionDate,
         receipt_temp: (values.receipt_temp as string) || "",
         sample_type_id: sampleTypeId,
+        panel_id: values.panel_id || undefined,
         receipt_date: now.toISOString().split("T")[0],
         receipt_time: now.toTimeString().split(" ")[0],
       });
@@ -257,12 +270,18 @@ export default function Samples() {
         destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleReceive} style={{ marginTop: 16 }}>
-          <Form.Item name="sample_type_id" label="样本类型" rules={[{ required: true, message: "请选择样本类型" }]}>
-            <Select placeholder="请选择..." options={[
-              { label: "母体血浆 (cfDNA) — Streck BCT", value: "plasma-cfdna" },
-              { label: "宫颈拭子 — PreservCyt", value: "cervical-swab" },
-              { label: "液基细胞学 — SurePath", value: "lbc" },
+          <Form.Item name="sample_type_id" label="Sample Type" rules={[{ required: true, message: "Please select a sample type" }]}>
+            <Select placeholder="Select..." options={[
+              { label: "Maternal Plasma (cfDNA) — Streck BCT", value: "plasma-cfdna" },
+              { label: "Cervical Swab — PreservCyt", value: "cervical-swab" },
+              { label: "Liquid-Based Cytology — SurePath", value: "lbc" },
             ]} />
+          </Form.Item>
+
+          <Form.Item name="panel_id" label="Test Panel">
+            <Select placeholder="Select test panel (optional)" allowClear options={panels.map(p => ({
+              value: p.id, label: `${p.code} — ${p.name}`,
+            }))} />
           </Form.Item>
 
           <Form.Item name="patient_id" label="Patient ID">

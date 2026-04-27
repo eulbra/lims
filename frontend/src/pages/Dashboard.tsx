@@ -29,10 +29,17 @@ export default function Dashboard() {
         reported: s.total_reported,
         rejected: s.total_rejected_today,
       });
-      if (r) setRunStats({
-        total: r.total,
-        byStatus: r.by_status,
-      });
+      if (r) {
+        const byStatus = r.by_status
+          ? r.by_status
+          : Object.entries(r)
+              .filter(([k]) => k !== "total")
+              .map(([status, count]) => ({ status, count: count as number }));
+        setRunStats({
+          total: r.total ?? 0,
+          byStatus,
+        });
+      }
       setQcEvents(e);
       setLoading(false);
     }).catch((err) => {

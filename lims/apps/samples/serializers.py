@@ -75,7 +75,9 @@ class SampleListSerializer(serializers.ModelSerializer):
                    "receipt_date", "collection_date", "panel_info", "created_at"]
 
     def get_panel_info(self, obj):
-        # Get the most recent run/panel for this sample
+        if obj.panel_id:
+            return obj.panel.code if obj.panel else None
+        # Fallback: get the most recent run/panel for this sample
         run_sample = obj.run_samples.first()
         if run_sample:
             return run_sample.run.panel.code
@@ -85,11 +87,12 @@ class SampleListSerializer(serializers.ModelSerializer):
 class SampleReceiveSerializer(serializers.ModelSerializer):
     """Serializer for sample receipt (create + auto-barcode)."""
     sample_type_id = serializers.UUIDField(write_only=True)
+    panel_id = serializers.UUIDField(write_only=True, required=False)
 
     class Meta:
         model = Sample
         fields = [
-            "sample_type_id", "patient_id", "patient_name", "patient_dob",
+            "sample_type_id", "panel_id", "patient_id", "patient_name", "patient_dob",
             "patient_sex", "ordering_physician", "ordering_facility",
             "collection_date", "collection_time", "receipt_temp", "consent_given",
             "receipt_date", "receipt_time",
@@ -113,6 +116,7 @@ class SampleReceiveSerializer(serializers.ModelSerializer):
 
         # Pop write-only fields
         sample_type_id = validated_data.pop("sample_type_id", None)
+        panel_id = validated_data.pop("panel_id", None)
 
         # Set receipt date/time defaults if not provided
         if "receipt_date" not in validated_data or validated_data.get("receipt_date") is None:
@@ -129,6 +133,8 @@ class SampleReceiveSerializer(serializers.ModelSerializer):
         validated_data["created_by"] = user
 
         # Create sample with sample_type_id passed directly to the FK
+        if panel_id:
+            validated_data["panel_id"] = panel_id
         return Sample.objects.create(sample_type_id=sample_type_id, **validated_data)
 
     def _generate_barcode(self):

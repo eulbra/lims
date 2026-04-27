@@ -17,16 +17,31 @@ class OrderSerializer(serializers.ModelSerializer):
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):
+    sample_id = serializers.UUIDField(write_only=True, required=False)
+
     class Meta:
         model = Order
         fields = [
-            "panel", "ordering_physician", "ordering_facility",
+            "panel", "sample_id", "ordering_physician", "ordering_facility",
             "patient_id", "patient_name", "patient_dob", "patient_sex",
             "urgency", "clinical_notes",
         ]
 
     def create(self, validated_data):
         user = self.context["request"].user
+        sample_id = validated_data.pop("sample_id", None)
+        if sample_id:
+            from lims.apps.samples.models import Sample
+            try:
+                sample = Sample.objects.get(id=sample_id)
+                validated_data.setdefault("patient_id", sample.patient_id)
+                validated_data.setdefault("patient_name", sample.patient_name)
+                validated_data.setdefault("patient_dob", sample.patient_dob)
+                validated_data.setdefault("patient_sex", sample.patient_sex)
+                validated_data.setdefault("ordering_physician", sample.ordering_physician)
+                validated_data.setdefault("ordering_facility", sample.ordering_facility)
+            except Sample.DoesNotExist:
+                pass
         validated_data["site"] = user.site or self._get_default_site()
         validated_data["created_by"] = user
         # Auto-generate order_number
@@ -45,11 +60,15 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 class OrderListSerializer(serializers.ModelSerializer):
     panel_code = serializers.CharField(source="panel.code", read_only=True)
     panel_name = serializers.CharField(source="panel.name", read_only=True)
+    sample_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = [
-            "id", "order_number", "panel_code", "panel_name",
+            "id", "order_number", "panel_code", "panel_name", "sample_id",
             "patient_id", "patient_name", "status", "urgency",
             "created_at",
         ]
+
+    def get_sample_id(self, obj):
+        return str(obj.sample_id) if obj.sample_id else None

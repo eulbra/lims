@@ -67,6 +67,13 @@ class Sample(models.Model):
     patient_sex = models.CharField(max_length=1, blank=True)
     ordering_physician = models.CharField(max_length=200, blank=True)
     ordering_facility = models.CharField(max_length=200, blank=True)
+    panel = models.ForeignKey(
+        "TestPanel",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="samples",
+    )
     collection_date = models.DateField()
     collection_time = models.TimeField(null=True, blank=True)
     receipt_date = models.DateField()
