@@ -25,6 +25,9 @@ class SampleViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Sample.objects.filter(is_deleted=False)
+        # 默认排除终态样本，除非明确指定了 status 过滤
+        if "status" not in self.request.query_params:
+            qs = qs.exclude(status__in=["REJECTED", "ARCHIVED", "DISPOSED"])
         if self.request.user.site_id:
             qs = qs.filter(site=self.request.user.site)
         return qs.select_related("sample_type", "site").prefetch_related("movements", "run_samples")

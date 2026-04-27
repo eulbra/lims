@@ -86,7 +86,7 @@ class SampleRunViewSet(viewsets.ModelViewSet):
     def detail(self, request, pk=None):
         """Get run with all steps and samples."""
         run = self.get_object()
-        serializer = SampleRunSerializer(run)
+        serializer = SampleRunDetailSerializer(run)
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"])

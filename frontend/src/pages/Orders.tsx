@@ -66,7 +66,7 @@ export default function Orders() {
 
   const searchSamples = async (q?: string) => {
     try {
-      const params: Record<string, unknown> = { status: "ACCEPTED", size: 50 };
+      const params: Record<string, unknown> = { size: 50 };
       if (q && q.length >= 2) params.search = q;
       const res = await samplesApi.list(params);
       const data = (res.data as any).results || res.data || [];
