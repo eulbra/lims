@@ -81,10 +81,6 @@ class SampleListSerializer(serializers.ModelSerializer):
     def get_panel_info(self, obj):
         if obj.panel_id:
             return obj.panel.code if obj.panel else None
-        # Fallback: get the most recent run/panel for this sample
-        run_sample = obj.run_samples.first()
-        if run_sample:
-            return run_sample.run.panel.code
         return None
 
 
