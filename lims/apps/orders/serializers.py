@@ -30,6 +30,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = self.context["request"].user
         sample_id = validated_data.pop("sample_id", None)
+        sample = None
         if sample_id:
             from lims.apps.samples.models import Sample
             try:
@@ -50,7 +51,11 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         prefix = f"ORD-{today.strftime('%Y%m%d')}"
         count = Order.objects.filter(order_number__startswith=prefix).count() + 1
         validated_data["order_number"] = f"{prefix}-{count:04d}"
-        return Order.objects.create(**validated_data)
+        order = Order.objects.create(**validated_data)
+        if sample:
+            order.sample = sample
+            order.save(update_fields=["sample"])
+        return order
 
     def _get_default_site(self):
         from lims.apps.organizations.models import Site

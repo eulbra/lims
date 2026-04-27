@@ -43,13 +43,11 @@ export default function Orders() {
     }).catch(() => setPanels([]));
   }, []);
 
-  const searchSamples = async (q: string) => {
-    if (!q || q.length < 2) {
-      setSamples([]);
-      return;
-    }
+  const searchSamples = async (q?: string) => {
     try {
-      const res = await samplesApi.list({ search: q, page: 1, size: 20 });
+      const params: Record<string, unknown> = { status: "ACCEPTED", size: 50 };
+      if (q && q.length >= 2) params.search = q;
+      const res = await samplesApi.list(params);
       const data = (res.data as any).results || res.data || [];
       setSamples(Array.isArray(data) ? data : []);
     } catch {
@@ -185,6 +183,7 @@ export default function Orders() {
         title={<span><FileAddOutlined style={{ marginRight: 8, color: "#1677ff" }} />New Test Order</span>}
         open={modalOpen}
         onCancel={() => { setModalOpen(false); form.resetFields(); setSamples([]); }}
+        afterOpenChange={(open) => { if (open) searchSamples(); }}
         footer={null}
         width={600}
       >

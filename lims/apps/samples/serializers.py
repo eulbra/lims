@@ -68,10 +68,11 @@ class SampleListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views."""
     sample_type_code = serializers.CharField(source="sample_type.code", read_only=True)
     panel_info = serializers.SerializerMethodField()
+    patient_name = serializers.CharField(read_only=True)
 
     class Meta:
         model = Sample
-        fields = ["id", "barcode", "sample_type_code", "patient_id", "status",
+        fields = ["id", "barcode", "sample_type_code", "patient_id", "patient_name", "status",
                    "receipt_date", "collection_date", "panel_info", "created_at"]
 
     def get_panel_info(self, obj):

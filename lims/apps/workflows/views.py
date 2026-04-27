@@ -10,7 +10,7 @@ from datetime import date
 from .models import WorkflowProtocol, SampleRun, RunSample, WorkflowStep
 from .serializers import (
     WorkflowProtocolSerializer, RunSampleSerializer,
-    SampleRunSerializer, SampleRunCreateSerializer,
+    SampleRunSerializer, SampleRunCreateSerializer, SampleRunDetailSerializer,
     WorkflowStepSerializer,
 )
 
@@ -42,7 +42,7 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         if self.action == "create":
             return SampleRunCreateSerializer
         if self.action in ["retrieve", "detail"]:
-            return SampleRunSerializer
+            return SampleRunDetailSerializer
         return SampleRunSerializer
 
     def create(self, request, *args, **kwargs):

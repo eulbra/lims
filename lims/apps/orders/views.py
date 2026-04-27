@@ -38,6 +38,10 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({"error": "Only CREATED orders can be submitted"}, status=400)
         order.status = "IN_PROGRESS"
         order.save(update_fields=["status", "updated_at"])
+        # Cascade: auto-accept associated sample if still RECEIVED
+        if order.sample and order.sample.status == "RECEIVED":
+            order.sample.status = "ACCEPTED"
+            order.sample.save(update_fields=["status", "updated_at"])
         return Response({"status": order.status, "order_number": order.order_number})
 
     @action(detail=True, methods=["post"])
