@@ -9,6 +9,24 @@ const { Text } = Typography;
 const { TextArea } = Input;
 const { Search } = Input;
 
+const STATUS_COLORS: Record<string, string> = {
+  CREATED: "default", SAMPLED: "blue", IN_PROGRESS: "gold",
+  COMPLETED: "cyan", REPORTED: "green", CANCELLED: "red",
+};
+
+const STATUS_OPTIONS = [
+  { value: "CREATED", label: "Created" },
+  { value: "SAMPLED", label: "Sampled" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "REPORTED", label: "Reported" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
+
+const URGENCY_COLORS: Record<string, string> = {
+  ROUTINE: "blue", STAT: "red", RESEARCH: "purple",
+};
+
 export default function Orders() {
   const [form] = Form.useForm();
   const [modalOpen, setModalOpen] = useState(false);
@@ -19,11 +37,14 @@ export default function Orders() {
   const [page, setPage] = useState(1);
   const [panels, setPanels] = useState<TestPanel[]>([]);
   const [samples, setSamples] = useState<Sample[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await ordersApi.list({ page, size: 50, ordering: "-created_at" });
+      const params: Record<string, unknown> = { page, size: 50, ordering: "-created_at" };
+      if (statusFilter) params.status = statusFilter;
+      const res = await ordersApi.list(params);
       setOrders(res.data.results || []);
       setTotal(res.data.count || 0);
     } catch {
@@ -34,7 +55,7 @@ export default function Orders() {
     }
   };
 
-  useEffect(() => { fetchOrders(); }, [page]);
+  useEffect(() => { fetchOrders(); }, [page, statusFilter]);
 
   useEffect(() => {
     panelsApi.list().then(res => {
@@ -53,14 +74,6 @@ export default function Orders() {
     } catch {
       setSamples([]);
     }
-  };
-
-  const STATUS_COLORS: Record<string, string> = {
-    CREATED: "default", SAMPLED: "blue", IN_PROGRESS: "gold",
-    COMPLETED: "cyan", REPORTED: "green", CANCELLED: "red",
-  };
-  const URGENCY_COLORS: Record<string, string> = {
-    ROUTINE: "blue", STAT: "red", RESEARCH: "purple",
   };
 
   const handleSampleSelect = (sampleId: string) => {
@@ -160,7 +173,15 @@ export default function Orders() {
       <Card size="small" style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Space>
-            <Search placeholder="Search order #, patient..." prefix={<SearchOutlined />} style={{ width: 300 }} allowClear />
+            <Search placeholder="Search order #, patient..." prefix={<SearchOutlined />} style={{ width: 280 }} allowClear />
+            <Select
+              placeholder="Filter by status"
+              allowClear
+              style={{ width: 160 }}
+              options={STATUS_OPTIONS}
+              value={statusFilter}
+              onChange={(v) => { setStatusFilter(v); setPage(1); }}
+            />
             <Button icon={<ReloadOutlined />} onClick={fetchOrders}>Refresh</Button>
           </Space>
           <Space>

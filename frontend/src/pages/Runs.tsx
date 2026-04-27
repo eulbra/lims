@@ -15,6 +15,16 @@ const STATUS_COLORS: Record<string, string> = {
   ANALYZING: "orange", QC_REVIEW: "gold", COMPLETED: "green", FAILED: "red",
 };
 
+const STATUS_OPTIONS = [
+  { value: "PLANNED", label: "Planned" },
+  { value: "LIBRARY_PREP", label: "Library Prep" },
+  { value: "SEQUENCING", label: "Sequencing" },
+  { value: "ANALYZING", label: "Analyzing" },
+  { value: "QC_REVIEW", label: "QC Review" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "FAILED", label: "Failed" },
+];
+
 const STATUS_FLOW = ["PLANNED", "LIBRARY_PREP", "SEQUENCING", "ANALYZING", "QC_REVIEW", "COMPLETED"];
 
 export default function Runs() {
@@ -25,11 +35,14 @@ export default function Runs() {
   const [stepsVisible, setStepsVisible] = useState(false);
   const [tableLoading, setTableLoading] = useState(true);
   const [runs, setRuns] = useState<Run[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const fetchRuns = async () => {
     setTableLoading(true);
     try {
-      const res = await runsApi.list();
+      const params: Record<string, unknown> = {};
+      if (statusFilter) params.status = statusFilter;
+      const res = await runsApi.list(params);
       setRuns(res.data.results ?? res.data);
     } catch {
       message.error("Failed to load runs");
@@ -38,7 +51,7 @@ export default function Runs() {
     }
   };
 
-  useEffect(() => { fetchRuns(); }, []);
+  useEffect(() => { fetchRuns(); }, [statusFilter]);
 
   // ── Samples Transfer ───────────────────────────────────────
   const [availableSamples, setAvailableSamples] = useState<TransferItem[]>([]);
@@ -211,6 +224,14 @@ export default function Runs() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Space>
             <Input.Search placeholder="Search run number..." style={{ width: 250 }} allowClear />
+            <Select
+              placeholder="Filter by status"
+              allowClear
+              style={{ width: 160 }}
+              options={STATUS_OPTIONS}
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v)}
+            />
             <Button icon={<ReloadOutlined />} onClick={fetchRuns}>Refresh</Button>
           </Space>
           <Space>
@@ -328,7 +349,6 @@ export default function Runs() {
                   title: "Action", key: "action", width: 100, render: (_: unknown, r: any) => (
                     r.status === "PENDING" ? (
                       <Button size="small" onClick={async () => {
-                        // TODO: wire to workflow step complete endpoint when available
                         message.info("Step completion will be available in next update");
                       }}>Start</Button>
                     ) : r.status === "IN_PROGRESS" ? (

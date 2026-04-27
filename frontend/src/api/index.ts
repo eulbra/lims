@@ -35,6 +35,8 @@ export const samplesApi = {
   get: (id: string) => api.get<Sample>(`/samples/${id}/`),
   create: (data: Record<string, unknown>) =>
     api.post<Sample>("/samples/", data),
+  update: (id: string, data: Record<string, unknown>) =>
+    api.patch<Sample>(`/samples/${id}/`, data),
   reject: (id: string, reason: string, note?: string) =>
     api.post(`/samples/${id}/reject/`, {
       rejection_reason: reason, rejection_note: note,

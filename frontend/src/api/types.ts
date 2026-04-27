@@ -58,7 +58,10 @@ export interface Sample {
   status: string;
   sample_type_code: string;
   receipt_date: string;
+  receipt_temp?: string;
   collection_date: string;
+  ordering_physician?: string;
+  ordering_facility?: string;
   panel_info: string | null;
   created_at: string;
 }

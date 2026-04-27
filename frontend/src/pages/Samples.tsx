@@ -5,7 +5,7 @@ import {
 } from "antd";
 import {
   PlusOutlined, SearchOutlined, BarcodeOutlined,
-  ReloadOutlined, CheckOutlined, CloseOutlined,
+  ReloadOutlined, CheckOutlined, CloseOutlined, EditOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { samplesApi, panelsApi } from "../api";
@@ -28,19 +28,35 @@ const STATUS_COLOR: Record<string, string> = {
   DISPOSED: "default",
 };
 
+const STATUS_OPTIONS = [
+  { value: "RECEIVED", label: "Received" },
+  { value: "ACCEPTED", label: "Accepted" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "IN_PROCESS", label: "In Process" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "REPORTED", label: "Reported" },
+];
+
 export default function Samples() {
   const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
   const [rejectForm] = Form.useForm();
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSample, setEditSample] = useState<Sample | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectSample, setRejectSample] = useState<Sample | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [panels, setPanels] = useState<{ id: string; code: string; name: string }[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const fetchSamples = useCallback(
-    ({ page, size, search, ordering }: { page: number; size: number; search?: string; ordering?: string }) =>
-      samplesApi.list({ page, size, search, ordering }),
-    []
+    ({ page, size, search, ordering }: { page: number; size: number; search?: string; ordering?: string }) => {
+      const params: Record<string, unknown> = { page, size, search, ordering };
+      if (statusFilter) params.status = statusFilter;
+      return samplesApi.list(params);
+    },
+    [statusFilter]
   );
 
   const { items, total, page, loading, fetch, setPage, setSearch, search } =
@@ -74,6 +90,9 @@ export default function Samples() {
     { title: "Patient ID", dataIndex: "patient_id", key: "patient_id", width: 130,
       render: (t: string) => t || "-"
     },
+    { title: "Patient Name", dataIndex: "patient_name", key: "patient_name", width: 150,
+      render: (t: string) => t || "-"
+    },
     { title: "Sample Type", dataIndex: "sample_type_code", key: "sample_type_code", width: 140 },
     { title: "Panel", dataIndex: "panel_info", key: "panel_info", width: 100,
       render: (t: string) => t ? <Tag>{t}</Tag> : "-"
@@ -99,10 +118,27 @@ export default function Samples() {
     {
       title: "Actions",
       key: "actions",
-      width: 140,
+      width: 180,
       fixed: "right" as const,
       render: (_: unknown, record: Sample) => (
         <Space size="small">
+          <Tooltip title="Edit">
+            <Button
+              icon={<EditOutlined />} size="small" type="text"
+              onClick={() => {
+                setEditSample(record);
+                editForm.setFieldsValue({
+                  patient_id: record.patient_id || "",
+                  patient_name: record.patient_name || "",
+                  ordering_physician: record.ordering_physician || "",
+                  ordering_facility: record.ordering_facility || "",
+                  collection_date: record.collection_date ? dayjs(record.collection_date) : null,
+                  receipt_temp: record.receipt_temp || "",
+                });
+                setEditOpen(true);
+              }}
+            />
+          </Tooltip>
           {record.status === "RECEIVED" && (
             <>
               <Tooltip title="Accept">
@@ -163,7 +199,6 @@ export default function Samples() {
   const handleReceive = async (values: Record<string, unknown>) => {
     setSubmitting(true);
     try {
-      // Map sample type code to UUID
       const typeMap: Record<string, string> = {
         "plasma-cfdna": "d64f2a8f-19ce-47f4-8a92-9bbc3019e52c",
         "cervical-swab": "326ae28b-6a71-4ec6-b816-c1cb2d93a484",
@@ -176,8 +211,6 @@ export default function Samples() {
         return;
       }
 
-      const now = new Date();
-      // Serialize DatePicker (Dayjs) to ISO date string
       const collectionDate = values.collection_date
         ? (values.collection_date as dayjs.Dayjs).format("YYYY-MM-DD")
         : null;
@@ -191,8 +224,8 @@ export default function Samples() {
         receipt_temp: (values.receipt_temp as string) || "",
         sample_type_id: sampleTypeId,
         panel_id: values.panel_id || undefined,
-        receipt_date: now.toISOString().split("T")[0],
-        receipt_time: now.toTimeString().split(" ")[0],
+        receipt_date: dayjs().format("YYYY-MM-DD"),
+        receipt_time: dayjs().format("HH:mm:ss"),
       });
       message.success("样本接收成功");
       setReceiveOpen(false);
@@ -200,6 +233,39 @@ export default function Samples() {
       fetch();
     } catch (err) {
       message.error("样本接收失败");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditSubmit = async (values: Record<string, unknown>) => {
+    if (!editSample) return;
+    setSubmitting(true);
+    try {
+      const payload: Record<string, unknown> = {};
+      if (values.patient_id !== undefined) payload.patient_id = values.patient_id || "";
+      if (values.patient_name !== undefined) payload.patient_name = values.patient_name || "";
+      if (values.ordering_physician !== undefined) payload.ordering_physician = values.ordering_physician || "";
+      if (values.ordering_facility !== undefined) payload.ordering_facility = values.ordering_facility || "";
+      if (values.receipt_temp !== undefined) payload.receipt_temp = values.receipt_temp || "";
+      if (values.collection_date) {
+        payload.collection_date = (values.collection_date as dayjs.Dayjs).format("YYYY-MM-DD");
+      }
+      await samplesApi.update(editSample.id, payload);
+      message.success("Sample updated");
+      setEditOpen(false);
+      setEditSample(null);
+      editForm.resetFields();
+      fetch();
+    } catch (err: any) {
+      const detail = err?.response?.data;
+      if (detail && typeof detail === "object") {
+        const msgs = Object.entries(detail).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`);
+        message.error(msgs.join("; "));
+      } else {
+        message.error("Failed to update sample");
+      }
+    } finally {
       setSubmitting(false);
     }
   };
@@ -213,11 +279,19 @@ export default function Samples() {
             <Search
               placeholder="Search barcode or patient ID..."
               prefix={<SearchOutlined />}
-              style={{ width: 300 }}
+              style={{ width: 280 }}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onSearch={() => fetch()}
               allowClear
+            />
+            <Select
+              placeholder="Filter by status"
+              allowClear
+              style={{ width: 160 }}
+              options={STATUS_OPTIONS}
+              value={statusFilter}
+              onChange={(v) => { setStatusFilter(v); setPage(1); fetch(); }}
             />
             <Button
               icon={<ReloadOutlined />}
@@ -243,7 +317,7 @@ export default function Samples() {
           rowKey="id"
           loading={loading}
           size="middle"
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1100 }}
           pagination={{
             current: page,
             pageSize: 50,
@@ -314,6 +388,43 @@ export default function Samples() {
               <Button type="primary" htmlType="submit" loading={submitting}>
                 Receive
               </Button>
+            </Space>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* ── Edit Sample Modal ──────────────────────────────── */}
+      <Modal
+        title={`Edit Sample: ${editSample?.barcode || ""}`}
+        open={editOpen}
+        onCancel={() => { setEditOpen(false); setEditSample(null); editForm.resetFields(); }}
+        footer={null}
+        width={600}
+        destroyOnClose
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleEditSubmit} style={{ marginTop: 16 }}>
+          <Form.Item name="patient_id" label="Patient ID">
+            <Input />
+          </Form.Item>
+          <Form.Item name="patient_name" label="Patient Name">
+            <Input />
+          </Form.Item>
+          <Form.Item name="collection_date" label="Collection Date">
+            <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
+          </Form.Item>
+          <Form.Item name="ordering_physician" label="Ordering Physician">
+            <Input />
+          </Form.Item>
+          <Form.Item name="ordering_facility" label="Ordering Facility">
+            <Input />
+          </Form.Item>
+          <Form.Item name="receipt_temp" label="Transport Temperature">
+            <Input placeholder="e.g. 4C, ambient" />
+          </Form.Item>
+          <div style={{ textAlign: "right", marginTop: 8 }}>
+            <Space>
+              <Button onClick={() => { setEditOpen(false); setEditSample(null); editForm.resetFields(); }}>Cancel</Button>
+              <Button type="primary" htmlType="submit" loading={submitting}>Save</Button>
             </Space>
           </div>
         </Form>
