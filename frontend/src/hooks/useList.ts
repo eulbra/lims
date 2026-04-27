@@ -76,48 +76,50 @@ export function usePaginated<T>(
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
-  // Track latest request to avoid race conditions
-  const reqIdRef = useRef(0);
+  // Keep mutable refs so fetch callback does NOT recreate on every render
+  const fetchFnRef = useRef(fetchFn);
+  const filtersRef = useRef(filters);
+  const orderingRef = useRef(ordering);
+
+  useEffect(() => { fetchFnRef.current = fetchFn; }, [fetchFn]);
+  useEffect(() => { filtersRef.current = filters; }, [filters]);
+  useEffect(() => { orderingRef.current = ordering; }, [ordering]);
 
   const fetch = useCallback(async (p?: number, s?: string) => {
     const currentPage = p ?? page;
     const currentSearch = s ?? search;
-    const reqId = ++reqIdRef.current;
 
     setLoading(true);
     try {
       const params: Record<string, unknown> = {
         page: currentPage,
         size: 50,
-        ordering,
-        ...filters,
+        ordering: orderingRef.current,
+        ...filtersRef.current,
       };
       if (currentSearch) params.search = currentSearch;
-      const { data } = await fetchFn(params);
-      if (reqId === reqIdRef.current) {
-        setItems(data.results);
-        setTotal(data.count);
-        setPage(currentPage);
-        setSearch(currentSearch);
-      }
+      const { data } = await fetchFnRef.current(params);
+      setItems(data.results);
+      setTotal(data.count);
+      setPage(currentPage);
+      setSearch(currentSearch);
     } catch {
       /* error handled by caller */
     } finally {
-      if (reqId === reqIdRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  }, [fetchFn, ordering, filters, page, search]);
+  }, [page, search]); // Only stable state deps; mutable refs handle the rest
 
   // Auto-fetch when page or search changes
   useEffect(() => {
     if (autoFetch) fetch(page, search);
   }, [fetch, autoFetch, page, search]);
 
-  // Reset page to 1 when filters change
+  // Reset page to 1 when filters content changes
+  const filtersKey = JSON.stringify(filters);
   useEffect(() => {
     setPage(1);
-  }, [JSON.stringify(filters)]);
+  }, [filtersKey]);
 
   return { items, total, page, loading, search, fetch, setPage, setSearch };
 }
