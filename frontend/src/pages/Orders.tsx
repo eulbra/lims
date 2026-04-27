@@ -82,6 +82,8 @@ export default function Orders() {
     form.setFieldsValue({
       patient_id: s.patient_id || undefined,
       patient_name: s.patient_name || undefined,
+      ordering_physician: s.ordering_physician || undefined,
+      ordering_facility: s.ordering_facility || undefined,
     });
   };
 

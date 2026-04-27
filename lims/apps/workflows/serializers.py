@@ -76,6 +76,9 @@ class SampleRunDetailSerializer(SampleRunSerializer):
     run_samples = RunSampleSerializer(many=True, read_only=True)
     steps = serializers.SerializerMethodField()
 
+    class Meta(SampleRunSerializer.Meta):
+        fields = SampleRunSerializer.Meta.fields + ["run_samples", "steps"]
+
     def get_steps(self, obj):
         return WorkflowStepSerializer(obj.steps.all(), many=True).data
 

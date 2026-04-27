@@ -35,12 +35,18 @@ class OrderCreateSerializer(serializers.ModelSerializer):
             from lims.apps.samples.models import Sample
             try:
                 sample = Sample.objects.get(id=sample_id)
-                validated_data.setdefault("patient_id", sample.patient_id)
-                validated_data.setdefault("patient_name", sample.patient_name)
-                validated_data.setdefault("patient_dob", sample.patient_dob)
-                validated_data.setdefault("patient_sex", sample.patient_sex)
-                validated_data.setdefault("ordering_physician", sample.ordering_physician)
-                validated_data.setdefault("ordering_facility", sample.ordering_facility)
+                if not validated_data.get("patient_id"):
+                    validated_data["patient_id"] = sample.patient_id
+                if not validated_data.get("patient_name"):
+                    validated_data["patient_name"] = sample.patient_name
+                if not validated_data.get("patient_dob"):
+                    validated_data["patient_dob"] = sample.patient_dob
+                if not validated_data.get("patient_sex"):
+                    validated_data["patient_sex"] = sample.patient_sex
+                if not validated_data.get("ordering_physician"):
+                    validated_data["ordering_physician"] = sample.ordering_physician
+                if not validated_data.get("ordering_facility"):
+                    validated_data["ordering_facility"] = sample.ordering_facility
             except Sample.DoesNotExist:
                 pass
         validated_data["site"] = user.site or self._get_default_site()

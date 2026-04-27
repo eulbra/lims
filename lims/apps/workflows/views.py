@@ -80,6 +80,37 @@ class SampleRunViewSet(viewsets.ModelViewSet):
             # Update sample status to IN_PROCESS
             Sample.objects.filter(id=sid).update(status="IN_PROCESS")
 
+        # Create workflow steps from protocol or defaults
+        step_defs = []
+        if run.protocol and run.protocol.steps_definition:
+            try:
+                proto_steps = run.protocol.steps_definition
+                if isinstance(proto_steps, list):
+                    step_defs = [
+                        {"step_id": s.get("id", f"step_{i}"), "step_name": s.get("name", f"Step {i+1}")}
+                        for i, s in enumerate(proto_steps)
+                    ]
+            except Exception:
+                pass
+
+        if not step_defs:
+            step_defs = [
+                {"step_id": "dna_extraction", "step_name": "DNA Extraction"},
+                {"step_id": "library_prep", "step_name": "Library Preparation"},
+                {"step_id": "sequencing", "step_name": "Sequencing"},
+                {"step_id": "data_analysis", "step_name": "Data Analysis"},
+                {"step_id": "qc_review", "step_name": "QC Review"},
+            ]
+
+        for idx, step_def in enumerate(step_defs, start=1):
+            WorkflowStep.objects.create(
+                run=run,
+                step_id=step_def["step_id"],
+                step_name=step_def["step_name"],
+                step_order=idx,
+                status="PENDING",
+            )
+
         return Response(SampleRunSerializer(run).data, status=201)
 
     @action(detail=True, methods=["get"])
