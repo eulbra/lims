@@ -150,30 +150,37 @@ export default function Runs() {
       render: (_: unknown, record: Run) => {
         const canAdvance = record.status !== "COMPLETED" && record.status !== "FAILED";
         const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(record.status) + 1];
+        const isLast = record.status === "QC_REVIEW";
         return (
           <Space size="small">
             <Button icon={<EyeOutlined />} size="small" type="text"
               onClick={() => openSteps(record)} />
-            {canAdvance && nextStatus && (
+            {canAdvance && nextStatus && !isLast && (
               <Button icon={<StepForwardOutlined />} size="small"
                 onClick={async () => {
                   try {
                     await runsApi.advanceStatus(record.id, nextStatus);
                     message.success(`Advanced to ${nextStatus.replace(/_/g, " ")}`);
                     fetchRuns();
-                  } catch { message.error("Failed to advance status"); }
+                  } catch (err: any) {
+                    const msg = err?.response?.data?.error || err?.response?.data?.detail || "Failed to advance status";
+                    message.error(msg);
+                  }
                 }}>
                 {nextStatus.replace(/_/g, " ")}
               </Button>
             )}
-            {record.status === "QC_REVIEW" && (
+            {isLast && (
               <Button icon={<CheckCircleOutlined />} size="small" type="primary"
                 onClick={async () => {
                   try {
                     await runsApi.advanceStatus(record.id, "COMPLETED");
                     message.success("Run completed");
                     fetchRuns();
-                  } catch { message.error("Failed to complete run"); }
+                  } catch (err: any) {
+                    const msg = err?.response?.data?.error || err?.response?.data?.detail || "Failed to complete run";
+                    message.error(msg);
+                  }
                 }}>
                 Complete
               </Button>
@@ -379,8 +386,9 @@ export default function Runs() {
                           setSelectedRun((prev) => prev ? { ...prev, status: nextStatus } : prev);
                           fetchRunDetail(selectedRun.id);
                           fetchRuns();
-                        } catch {
-                          message.error("Failed to advance status");
+                        } catch (err: any) {
+                          const msg = err?.response?.data?.error || err?.response?.data?.detail || "Failed to advance status";
+                          message.error(msg);
                         }
                       }}>Complete</Button>
                     ) : r.status === "COMPLETED" ? (

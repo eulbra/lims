@@ -98,7 +98,7 @@ class ReportViewSet(viewsets.ModelViewSet):
             "status": report.status,
             "version": report.version_number,
             "generated_at": timezone.now().isoformat(),
-            "generated_by": request.user.get_full_name() or request.user.username,
+            "generated_by": f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
         }
         report.content = content
         report.save(update_fields=["content", "updated_at"])

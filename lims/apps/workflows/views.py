@@ -211,7 +211,7 @@ class SampleRunViewSet(viewsets.ModelViewSet):
                     "status": "DRAFT",
                     "version": 1,
                     "generated_at": timezone.now().isoformat(),
-                    "generated_by": request.user.get_full_name() or request.user.username,
+                    "generated_by": f"{request.user.first_name} {request.user.last_name}".strip() or request.user.username,
                 }
                 Report.objects.create(
                     report_number=report_number,
