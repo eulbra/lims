@@ -22,6 +22,7 @@ const MENU_ITEMS = [
   { key: "/samples",    icon: <BarcodeOutlined />,         label: "Samples" },
   { key: "/orders",     icon: <InboxOutlined />,           label: "Orders" },
   { key: "/runs",       icon: <ExperimentOutlined />,      label: "Runs" },
+  { key: "/protocols",  icon: <FileTextOutlined />,        label: "Protocols" },
   { key: "/reports",    icon: <FileTextOutlined />,        label: "Reports" },
   // Quality
   {

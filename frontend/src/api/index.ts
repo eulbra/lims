@@ -61,7 +61,15 @@ export const runsApi = {
   stats: () => api.get<RunStats>("/runs/stats/"),
 };
 
-// ── Workflow Steps ─────────────────────────────────────────────
+// ── Protocols ──────────────────────────────────────────────────────
+export const protocolsApi = {
+  list: (params?: Record<string, unknown>) =>
+    api.get<Pageable<any>>("/protocols/", { params }),
+  get: (id: string) => api.get<any>(`/protocols/${id}/`),
+  create: (data: Record<string, unknown>) => api.post<any>("/protocols/", data),
+  update: (id: string, data: Record<string, unknown>) => api.patch<any>(`/protocols/${id}/`, data),
+  delete: (id: string) => api.delete(`/protocols/${id}/`),
+};
 export const stepsApi = {
   list: (params?: Record<string, unknown>) =>
     api.get<Pageable<any>>("/runs/steps/", { params }),

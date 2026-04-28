@@ -20,6 +20,7 @@ const Bioinformatics  = lazy(() => import("./Bioinformatics"));
 const Quality         = lazy(() => import("./Quality"));
 const AuditLog        = lazy(() => import("./AuditLog"));
 const Notifications   = lazy(() => import("./Notifications"));
+const Protocols       = lazy(() => import("./Protocols"));
 
 // Loading fallback
 const PageLoading = () => (
@@ -65,6 +66,8 @@ export default function AppRouter() {
         <Route path="/quality"           element={<Protected><Quality /></Protected>} />
         <Route path="/audit"             element={<Protected><AuditLog /></Protected>} />
         <Route path="/notifications"     element={<Protected><Notifications /></Protected>} />
+
+        <Route path="/protocols"     element={<Protected><Protocols /></Protected>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

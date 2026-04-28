@@ -20,8 +20,18 @@ class WorkflowProtocolViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = WorkflowProtocolSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    search_fields = ["name"]
-    filterset_fields = ["is_active"]
+    search_fields = ["name", "panel__code", "panel__name"]
+    filterset_fields = ["is_active", "panel"]
+    ordering_fields = ["created_at", "name"]
+
+    def get_queryset(self):
+        qs = WorkflowProtocol.objects.all().select_related("panel", "created_by")
+        if self.request.user.site_id:
+            qs = qs.filter(panel__site=self.request.user.site)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
 
 class SampleRunViewSet(viewsets.ModelViewSet):
@@ -83,34 +93,57 @@ class SampleRunViewSet(viewsets.ModelViewSet):
             Sample.objects.filter(id=sid).update(status="IN_PROCESS")
 
         # Create workflow steps per sample from protocol or defaults
-        # Get default step definitions based on panel
+        # Resolve protocol: find active protocol for this panel, or auto-create default
         panel = run.panel
-        if panel and panel.code == "HPV":
-            # HPV panel skips library prep and direct sequencing
-            step_defs = [
-                {"step_id": "dna_extraction", "step_name": "DNA Extraction"},
-                {"step_id": "pcr_amplification", "step_name": "PCR Amplification"},
-                {"step_id": "capillary_electrophoresis", "step_name": "Capillary Electrophoresis"},
-                {"step_id": "data_analysis", "step_name": "Data Analysis"},
-                {"step_id": "qc_review", "step_name": "QC Review"},
-            ]
-        elif run.protocol and run.protocol.steps_definition:
-            try:
-                proto_steps = run.protocol.steps_definition
-                if isinstance(proto_steps, list):
-                    step_defs = [
-                        {"step_id": s.get("id", f"step_{i}"), "step_name": s.get("name", f"Step {i+1}")}
-                        for i, s in enumerate(proto_steps)
+        protocol = run.protocol
+        if not protocol and panel:
+            protocol = WorkflowProtocol.objects.filter(panel=panel, is_active=True).first()
+            if not protocol:
+                # Auto-create a default protocol for this panel
+                default_steps = [
+                    {"step_id": "dna_extraction", "step_name": "DNA Extraction", "step_order": 1, "required": True},
+                    {"step_id": "library_prep", "step_name": "Library Preparation", "step_order": 2, "required": True},
+                    {"step_id": "sequencing", "step_name": "Sequencing", "step_order": 3, "required": True},
+                    {"step_id": "data_analysis", "step_name": "Data Analysis", "step_order": 4, "required": True},
+                    {"step_id": "qc_review", "step_name": "QC Review", "step_order": 5, "required": True},
+                ]
+                # HPV uses PCR instead of library prep + sequencing
+                if panel.code == "HPV":
+                    default_steps = [
+                        {"step_id": "dna_extraction", "step_name": "DNA Extraction", "step_order": 1, "required": True},
+                        {"step_id": "pcr_amplification", "step_name": "PCR Amplification", "step_order": 2, "required": True},
+                        {"step_id": "capillary_electrophoresis", "step_name": "Capillary Electrophoresis", "step_order": 3, "required": True},
+                        {"step_id": "data_analysis", "step_name": "Data Analysis", "step_order": 4, "required": True},
+                        {"step_id": "qc_review", "step_name": "QC Review", "step_order": 5, "required": True},
                     ]
-            except Exception:
-                step_defs = []
-        else:
+                protocol = WorkflowProtocol.objects.create(
+                    panel=panel,
+                    name=f"{panel.code} Standard Workflow",
+                    version="1.0",
+                    description=f"Auto-generated default workflow for {panel.name}",
+                    steps_definition=default_steps,
+                    site=site,
+                    created_by=request.user,
+                )
+            run.protocol = protocol
+            run.save(update_fields=["protocol"])
+
+        # Build step definitions from protocol
+        if protocol and protocol.steps_definition and isinstance(protocol.steps_definition, list):
             step_defs = [
-                {"step_id": "dna_extraction", "step_name": "DNA Extraction"},
-                {"step_id": "library_prep", "step_name": "Library Preparation"},
-                {"step_id": "sequencing", "step_name": "Sequencing"},
-                {"step_id": "data_analysis", "step_name": "Data Analysis"},
-                {"step_id": "qc_review", "step_name": "QC Review"},
+                {"step_id": s.get("step_id", s.get("id", f"step_{i}")),
+                 "step_name": s.get("step_name", s.get("name", f"Step {i+1}")),
+                 "step_order": s.get("step_order", i + 1)}
+                for i, s in enumerate(protocol.steps_definition)
+            ]
+        else:
+            # Ultimate fallback
+            step_defs = [
+                {"step_id": "dna_extraction", "step_name": "DNA Extraction", "step_order": 1},
+                {"step_id": "library_prep", "step_name": "Library Preparation", "step_order": 2},
+                {"step_id": "sequencing", "step_name": "Sequencing", "step_order": 3},
+                {"step_id": "data_analysis", "step_name": "Data Analysis", "step_order": 4},
+                {"step_id": "qc_review", "step_name": "QC Review", "step_order": 5},
             ]
 
         # Create a WorkflowStep record for EACH sample × EACH step (matrix)

@@ -4,10 +4,29 @@ from .models import WorkflowProtocol, SampleRun, RunSample, WorkflowStep
 
 
 class WorkflowProtocolSerializer(serializers.ModelSerializer):
+    panel_code = serializers.CharField(source="panel.code", read_only=True)
+    panel_name = serializers.CharField(source="panel.name", read_only=True)
+    step_count = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
     class Meta:
         model = WorkflowProtocol
-        fields = "__all__"
-        read_only_fields = ["validated_at", "validated_by", "created_by"]
+        fields = [
+            "id", "panel", "panel_code", "panel_name", "name", "version",
+            "description", "estimated_hours", "is_active", "steps_definition",
+            "step_count", "validated_at", "validated_by", "created_by", "created_by_name",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = ["validated_at", "validated_by", "created_by", "created_by_name", "created_at", "updated_at"]
+
+    def get_step_count(self, obj):
+        steps = obj.steps_definition
+        return len(steps) if isinstance(steps, list) else 0
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
+        return None
 
 
 class WorkflowProtocolDetailSerializer(WorkflowProtocolSerializer):
