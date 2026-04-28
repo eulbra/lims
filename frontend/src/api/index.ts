@@ -51,7 +51,7 @@ export const runsApi = {
   list: (params?: Record<string, unknown>) =>
     api.get<Pageable<Run>>("/runs/", { params }),
   get: (id: string) => api.get<Run>(`/runs/${id}/`),
-  detail: (id: string) => api.get<Run>(`/runs/${id}/detail/`),
+  detail: (id: string) => api.get<Run>(`/runs/${id}/run_detail/`),
   create: (data: Record<string, unknown>) =>
     api.post<Run>("/runs/", data),
   advanceStatus: (id: string, status: string) =>
@@ -64,11 +64,11 @@ export const runsApi = {
 // ── Protocols ──────────────────────────────────────────────────────
 export const protocolsApi = {
   list: (params?: Record<string, unknown>) =>
-    api.get<Pageable<any>>("/protocols/", { params }),
-  get: (id: string) => api.get<any>(`/protocols/${id}/`),
-  create: (data: Record<string, unknown>) => api.post<any>("/protocols/", data),
-  update: (id: string, data: Record<string, unknown>) => api.patch<any>(`/protocols/${id}/`, data),
-  delete: (id: string) => api.delete(`/protocols/${id}/`),
+    api.get<Pageable<any>>("/runs/protocols/", { params }),
+  get: (id: string) => api.get<any>(`/runs/protocols/${id}/`),
+  create: (data: Record<string, unknown>) => api.post<any>("/runs/protocols/", data),
+  update: (id: string, data: Record<string, unknown>) => api.patch<any>(`/runs/protocols/${id}/`, data),
+  delete: (id: string) => api.delete(`/runs/protocols/${id}/`),
 };
 export const stepsApi = {
   list: (params?: Record<string, unknown>) =>

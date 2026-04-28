@@ -51,7 +51,7 @@ class SampleRunViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "create":
             return SampleRunCreateSerializer
-        if self.action in ["retrieve", "detail"]:
+        if self.action in ["retrieve", "run_detail"]:
             return SampleRunDetailSerializer
         return SampleRunSerializer
 
@@ -122,7 +122,6 @@ class SampleRunViewSet(viewsets.ModelViewSet):
                     version="1.0",
                     description=f"Auto-generated default workflow for {panel.name}",
                     steps_definition=default_steps,
-                    site=site,
                     created_by=request.user,
                 )
             run.protocol = protocol
@@ -161,7 +160,7 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         return Response(SampleRunSerializer(run).data, status=201)
 
     @action(detail=True, methods=["get"])
-    def detail(self, request, pk=None):
+    def run_detail(self, request, pk=None):
         """Get run with all steps and samples."""
         run = self.get_object()
         serializer = SampleRunDetailSerializer(run)
