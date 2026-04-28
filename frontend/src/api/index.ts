@@ -68,6 +68,9 @@ export const reportsApi = {
   sign: (id: string, password: string) =>
     api.post(`/reports/${id}/sign/`, { password }),
   release: (id: string) => api.post(`/reports/${id}/release/`),
+  generate: (id: string) => api.post<Report>(`/reports/${id}/generate/`),
+  download: (id: string) =>
+    api.get(`/reports/${id}/download/`, { responseType: "blob" }),
 };
 
 // ── QC ────────────────────────────────────────────────────────

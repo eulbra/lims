@@ -85,22 +85,27 @@ export default function Reports() {
     }
   };
 
-  const handleDownload = (report: Report) => {
+  const handleDownload = async (report: Report) => {
     if (report.pdf_file_path) {
       window.open(report.pdf_file_path, "_blank");
-    } else if (report.content) {
-      const blob = new Blob([JSON.stringify(report.content, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${report.report_number}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      message.success("Report content downloaded as JSON");
+    } else if (report.content && Object.keys(report.content).length > 0) {
+      try {
+        const res = await reportsApi.download(report.id);
+        const blob = new Blob([res.data], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${report.report_number}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        message.success("Report downloaded");
+      } catch {
+        message.error("Download failed");
+      }
     } else {
-      message.info("No downloadable content available yet");
+      message.info("No downloadable content available yet. Use Generate Report first.");
     }
   };
 
@@ -237,12 +242,39 @@ export default function Reports() {
               </Descriptions.Item>
             </Descriptions>
 
-            {viewReport.content && Object.keys(viewReport.content).length > 0 && (
+            {viewReport.content && Object.keys(viewReport.content).length > 0 ? (
               <>
                 <Divider orientation="left">Report Content</Divider>
                 <pre style={{ background: "#f6ffed", padding: 12, borderRadius: 6, maxHeight: 400, overflow: "auto", fontSize: 12 }}>
                   {JSON.stringify(viewReport.content, null, 2)}
                 </pre>
+              </>
+            ) : (
+              <>
+                <Divider />
+                <div style={{ textAlign: "center", padding: "24px 0" }}>
+                  <p style={{ color: "#999" }}>Report content not generated yet.</p>
+                  <Button
+                    type="primary"
+                    loading={viewLoading}
+                    onClick={async () => {
+                      if (!viewReport) return;
+                      setViewLoading(true);
+                      try {
+                        const res = await reportsApi.generate(viewReport.id);
+                        setViewReport(res.data);
+                        message.success("Report generated");
+                        fetchReports();
+                      } catch {
+                        message.error("Failed to generate report");
+                      } finally {
+                        setViewLoading(false);
+                      }
+                    }}
+                  >
+                    Generate Report Content
+                  </Button>
+                </div>
               </>
             )}
 
@@ -273,6 +305,8 @@ export default function Reports() {
           <p style={{ marginBottom: 4 }}><strong>Report:</strong> {actionTarget?.report_number}</p>
           <p style={{ marginBottom: 16, fontSize: 12, color: "#999" }}>
             Sign and approve this report. This action is logged in the audit trail per 21 CFR Part 11.
+            <br />
+            <strong>Password is your current login password.</strong>
           </p>
           <label style={{ fontSize: 13, fontWeight: 500 }}>Re-authenticate with your password:</label>
           <Password

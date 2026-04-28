@@ -76,6 +76,45 @@ class ReportViewSet(viewsets.ModelViewSet):
         return Response({"status": "SIGNED"})
 
     @action(detail=True, methods=["post"])
+    def generate(self, request, pk=None):
+        """Generate / re-generate report content from linked sample & run."""
+        report = self.get_object()
+        sample = report.sample
+        run = report.run_sample.run if report.run_sample else None
+        content = {
+            "report_number": report.report_number,
+            "panel": sample.panel.code if sample.panel else "",
+            "sample_barcode": sample.barcode,
+            "patient_id": sample.patient_id,
+            "patient_name": sample.patient_name,
+            "patient_dob": str(sample.patient_dob) if sample.patient_dob else None,
+            "patient_sex": sample.patient_sex,
+            "collection_date": str(sample.collection_date) if sample.collection_date else None,
+            "receipt_date": str(sample.receipt_date) if sample.receipt_date else None,
+            "ordering_physician": sample.ordering_physician,
+            "ordering_facility": sample.ordering_facility,
+            "run_number": run.run_number if run else None,
+            "sequencer": run.sequencer.name if run and run.sequencer else None,
+            "status": report.status,
+            "version": report.version_number,
+            "generated_at": timezone.now().isoformat(),
+            "generated_by": request.user.get_full_name() or request.user.username,
+        }
+        report.content = content
+        report.save(update_fields=["content", "updated_at"])
+        return Response(ReportSerializer(report).data)
+
+    @action(detail=True, methods=["get"])
+    def download(self, request, pk=None):
+        """Download report content as JSON."""
+        report = self.get_object()
+        if not report.content:
+            return Response({"error": "Report content not generated yet. Use POST /generate/ first."}, status=400)
+        response = Response(report.content)
+        response["Content-Disposition"] = f'attachment; filename="{report.report_number}.json"'
+        return response
+
+    @action(detail=True, methods=["post"])
     def release(self, request, pk=None):
         report = self.get_object()
         report.status = "RELEASED"

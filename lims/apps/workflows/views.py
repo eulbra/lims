@@ -172,6 +172,55 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         if new_status == "COMPLETED":
             sample_ids = run.run_samples.values_list("sample_id", flat=True)
             Sample.objects.filter(id__in=sample_ids).update(status="COMPLETED")
+
+            # Auto-create draft reports for each sample in the run
+            from lims.apps.reports.models import ReportTemplate, Report
+            from datetime import date
+            for rs in run.run_samples.select_related("sample"):
+                sample = rs.sample
+                if Report.objects.filter(sample=sample, run_sample=rs).exists():
+                    continue
+                template = ReportTemplate.objects.filter(panel=run.panel, is_active=True).first()
+                if not template:
+                    template = ReportTemplate.objects.create(
+                        panel=run.panel,
+                        code=f"{run.panel.code}_v1_en",
+                        name=f"{run.panel.name} Report",
+                        language="en",
+                        version=1,
+                        template_content={"header": f"{run.panel.name} Report", "sections": []},
+                        site=run.site,
+                        created_by=request.user,
+                    )
+                today = date.today().strftime("%Y%m%d")
+                prefix = f"RPT-{today}"
+                count = Report.objects.filter(report_number__startswith=prefix).count() + 1
+                report_number = f"{prefix}-{count:04d}"
+                content = {
+                    "run_number": run.run_number,
+                    "panel": run.panel.code if run.panel else "",
+                    "sample_barcode": sample.barcode,
+                    "patient_id": sample.patient_id,
+                    "patient_name": sample.patient_name,
+                    "patient_dob": str(sample.patient_dob) if sample.patient_dob else None,
+                    "patient_sex": sample.patient_sex,
+                    "collection_date": str(sample.collection_date) if sample.collection_date else None,
+                    "receipt_date": str(sample.receipt_date) if sample.receipt_date else None,
+                    "ordering_physician": sample.ordering_physician,
+                    "ordering_facility": sample.ordering_facility,
+                    "status": "DRAFT",
+                    "version": 1,
+                    "generated_at": timezone.now().isoformat(),
+                    "generated_by": request.user.get_full_name() or request.user.username,
+                }
+                Report.objects.create(
+                    report_number=report_number,
+                    sample=sample,
+                    run_sample=rs,
+                    template=template,
+                    site=run.site,
+                    content=content,
+                )
         elif new_status == "FAILED":
             sample_ids = run.run_samples.values_list("sample_id", flat=True)
             Sample.objects.filter(id__in=sample_ids).update(status="REJECTED")
