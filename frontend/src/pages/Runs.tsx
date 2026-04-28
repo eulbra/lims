@@ -368,14 +368,23 @@ export default function Runs() {
                 )},
                 {
                   title: "Action", key: "action", width: 100, render: (_: unknown, r: any) => (
-                    r.status === "PENDING" ? (
-                      <Button size="small" onClick={async () => {
-                        message.info("Step completion will be available in next update");
-                      }}>Start</Button>
-                    ) : r.status === "IN_PROGRESS" ? (
+                    r.status === "IN_PROGRESS" ? (
                       <Button size="small" type="primary" onClick={async () => {
-                        message.info("Step completion will be available in next update");
+                        if (!selectedRun) return;
+                        const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(selectedRun.status) + 1];
+                        if (!nextStatus) return;
+                        try {
+                          await runsApi.advanceStatus(selectedRun.id, nextStatus);
+                          message.success(`Advanced to ${nextStatus.replace(/_/g, " ")}`);
+                          setSelectedRun((prev) => prev ? { ...prev, status: nextStatus } : prev);
+                          fetchRunDetail(selectedRun.id);
+                          fetchRuns();
+                        } catch {
+                          message.error("Failed to advance status");
+                        }
                       }}>Complete</Button>
+                    ) : r.status === "COMPLETED" ? (
+                      <CheckCircleOutlined style={{ color: "#52c41a" }} />
                     ) : null
                   ),
                 },

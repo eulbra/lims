@@ -157,7 +157,7 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         elif new_status == "FAILED":
             run.steps.filter(status="IN_PROGRESS").update(status="FAILED")
         elif new_status in STATUS_ORDER:
-            idx = STATUS_ORDER.index(new_status)  # 1..4
+            idx = STATUS_ORDER.index(new_status) + 1  # 2..5
             for step in run.steps.order_by("step_order"):
                 if step.step_order < idx:
                     step.status = "COMPLETED"
