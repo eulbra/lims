@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message, Transfer, DatePicker } from "antd";
+import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message, Transfer, DatePicker, Tabs, Badge } from "antd";
 import type { TransferItem } from "antd/es/transfer";
 import { PlusOutlined, ReloadOutlined, EyeOutlined, ArrowRightOutlined, StepForwardOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import DashboardLayout from "../components/DashboardLayout";
@@ -353,54 +353,95 @@ export default function Runs() {
             <p><strong>Status:</strong> <Tag color={STATUS_COLORS[selectedRun.status]}>{selectedRun.status.replace(/_/g, " ")}</Tag></p>
           </div>
         )}
-        <Text strong>Workflow Steps:</Text>
-        <div style={{ marginTop: 8 }}>
-          {detailLoading ? (
-            <Text type="secondary">Loading steps...</Text>
-          ) : (
-            <Table
-              size="small"
-              dataSource={runDetail?.steps || []}
-              rowKey="id"
-              pagination={false}
-              columns={[
-                { title: "Step", dataIndex: "step_name", key: "name", render: (t: string, r: any) => (
-                  <span>{r.step_order}. {t}</span>
-                )},
-                { title: "Status", dataIndex: "status", key: "status", width: 120, render: (s: string) => (
-                  <Tag color={s === "COMPLETED" ? "green" : s === "IN_PROGRESS" ? "blue" : "default"}>{s.replace(/_/g, " ")}</Tag>
-                )},
-                { title: "Performed By", dataIndex: "performed_by", key: "performed_by", width: 140, render: (_t: string, r: any) => (
-                  r.performed_by_name || "-"
-                )},
-                {
-                  title: "Action", key: "action", width: 100, render: (_: unknown, r: any) => (
-                    r.status === "IN_PROGRESS" ? (
-                      <Button size="small" type="primary" onClick={async () => {
-                        if (!selectedRun) return;
-                        const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(selectedRun.status) + 1];
-                        if (!nextStatus) return;
-                        try {
-                          await runsApi.advanceStatus(selectedRun.id, nextStatus);
-                          message.success(`Advanced to ${nextStatus.replace(/_/g, " ")}`);
-                          setSelectedRun((prev) => prev ? { ...prev, status: nextStatus } : prev);
-                          fetchRunDetail(selectedRun.id);
-                          fetchRuns();
-                        } catch (err: any) {
-                          const msg = err?.response?.data?.error || err?.response?.data?.detail || "Failed to advance status";
-                          message.error(msg);
-                        }
-                      }}>Complete</Button>
-                    ) : r.status === "COMPLETED" ? (
-                      <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                    ) : null
-                  ),
-                },
-              ]}
-              locale={{ emptyText: "No workflow steps found" }}
-            />
-          )}
-        </div>
+        <Tabs
+          defaultActiveKey="samples"
+          items={[
+            {
+              key: "samples",
+              label: (
+                <span>
+                  Samples
+                  <Badge
+                    count={runDetail?.run_samples?.length ?? 0}
+                    style={{ marginLeft: 8, backgroundColor: "#1677ff" }}
+                  />
+                </span>
+              ),
+              children: detailLoading ? (
+                <Text type="secondary">Loading samples...</Text>
+              ) : (
+                <Table
+                  size="small"
+                  dataSource={runDetail?.run_samples || []}
+                  rowKey="id"
+                  pagination={false}
+                  columns={[
+                    { title: "Barcode", dataIndex: "sample_barcode", key: "barcode", render: (t: string) => <Text strong copyable={{ text: t }}>{t}</Text> },
+                    { title: "Patient ID", dataIndex: "sample_patient_id", key: "patient_id", render: (t: string) => t || "—" },
+                    { title: "Well", dataIndex: "well_position", key: "well", width: 80, render: (t: string) => t || "—" },
+                    { title: "Index", dataIndex: "index_sequence", key: "index", width: 120, render: (t: string) => t || "—" },
+                    { title: "Pool", dataIndex: "pool_group", key: "pool", width: 100, render: (t: string) => t || "—" },
+                    { title: "Status", dataIndex: "status", key: "status", width: 120, render: (s: string) => (
+                      <Tag color={s === "PASSED_QC" ? "green" : s === "FAILED_QC" ? "red" : s === "SEQUENCED" ? "blue" : s === "ANALYZED" ? "cyan" : "default"}>
+                        {s.replace(/_/g, " ")}
+                      </Tag>
+                    )},
+                  ]}
+                  locale={{ emptyText: "No samples in this run" }}
+                />
+              ),
+            },
+            {
+              key: "steps",
+              label: "Workflow Steps",
+              children: detailLoading ? (
+                <Text type="secondary">Loading steps...</Text>
+              ) : (
+                <Table
+                  size="small"
+                  dataSource={runDetail?.steps || []}
+                  rowKey="id"
+                  pagination={false}
+                  columns={[
+                    { title: "Step", dataIndex: "step_name", key: "name", render: (t: string, r: any) => (
+                      <span>{r.step_order}. {t}</span>
+                    )},
+                    { title: "Status", dataIndex: "status", key: "status", width: 120, render: (s: string) => (
+                      <Tag color={s === "COMPLETED" ? "green" : s === "IN_PROGRESS" ? "blue" : "default"}>{s.replace(/_/g, " ")}</Tag>
+                    )},
+                    { title: "Performed By", dataIndex: "performed_by", key: "performed_by", width: 140, render: (_t: string, r: any) => (
+                      r.performed_by_name || "-"
+                    )},
+                    {
+                      title: "Action", key: "action", width: 100, render: (_: unknown, r: any) => (
+                        r.status === "IN_PROGRESS" ? (
+                          <Button size="small" type="primary" onClick={async () => {
+                            if (!selectedRun) return;
+                            const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(selectedRun.status) + 1];
+                            if (!nextStatus) return;
+                            try {
+                              await runsApi.advanceStatus(selectedRun.id, nextStatus);
+                              message.success(`Advanced to ${nextStatus.replace(/_/g, " ")}`);
+                              setSelectedRun((prev) => prev ? { ...prev, status: nextStatus } : prev);
+                              fetchRunDetail(selectedRun.id);
+                              fetchRuns();
+                            } catch (err: any) {
+                              const msg = err?.response?.data?.error || err?.response?.data?.detail || "Failed to advance status";
+                              message.error(msg);
+                            }
+                          }}>Complete</Button>
+                        ) : r.status === "COMPLETED" ? (
+                          <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                        ) : null
+                      ),
+                    },
+                  ]}
+                  locale={{ emptyText: "No workflow steps found" }}
+                />
+              ),
+            },
+          ]}
+        />
       </Modal>
     </DashboardLayout>
   );
