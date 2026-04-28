@@ -18,7 +18,7 @@ class ReportListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Report
         fields = [
-            "id", "report_number", "sample", "sample_barcode", "patient_name",
+            "id", "report_number", "sample", "sample_barcode", "patient_name", "panel_code",
             "status", "version_number", "released_at", "created_at",
         ]
 
