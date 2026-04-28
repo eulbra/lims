@@ -75,14 +75,26 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         )
 
         sample_ids = data.get("samples", [])
+        run_samples = []
         for sid in sample_ids:
-            RunSample.objects.get_or_create(run=run, sample_id=sid)
+            rs, _ = RunSample.objects.get_or_create(run=run, sample_id=sid)
+            run_samples.append(rs)
             # Update sample status to IN_PROCESS
             Sample.objects.filter(id=sid).update(status="IN_PROCESS")
 
-        # Create workflow steps from protocol or defaults
-        step_defs = []
-        if run.protocol and run.protocol.steps_definition:
+        # Create workflow steps per sample from protocol or defaults
+        # Get default step definitions based on panel
+        panel = run.panel
+        if panel and panel.code == "HPV":
+            # HPV panel skips library prep and direct sequencing
+            step_defs = [
+                {"step_id": "dna_extraction", "step_name": "DNA Extraction"},
+                {"step_id": "pcr_amplification", "step_name": "PCR Amplification"},
+                {"step_id": "capillary_electrophoresis", "step_name": "Capillary Electrophoresis"},
+                {"step_id": "data_analysis", "step_name": "Data Analysis"},
+                {"step_id": "qc_review", "step_name": "QC Review"},
+            ]
+        elif run.protocol and run.protocol.steps_definition:
             try:
                 proto_steps = run.protocol.steps_definition
                 if isinstance(proto_steps, list):
@@ -91,9 +103,8 @@ class SampleRunViewSet(viewsets.ModelViewSet):
                         for i, s in enumerate(proto_steps)
                     ]
             except Exception:
-                pass
-
-        if not step_defs:
+                step_defs = []
+        else:
             step_defs = [
                 {"step_id": "dna_extraction", "step_name": "DNA Extraction"},
                 {"step_id": "library_prep", "step_name": "Library Preparation"},
@@ -102,14 +113,17 @@ class SampleRunViewSet(viewsets.ModelViewSet):
                 {"step_id": "qc_review", "step_name": "QC Review"},
             ]
 
-        for idx, step_def in enumerate(step_defs, start=1):
-            WorkflowStep.objects.create(
-                run=run,
-                step_id=step_def["step_id"],
-                step_name=step_def["step_name"],
-                step_order=idx,
-                status="PENDING",
-            )
+        # Create a WorkflowStep record for EACH sample × EACH step (matrix)
+        for rs in run_samples:
+            for idx, step_def in enumerate(step_defs, start=1):
+                WorkflowStep.objects.create(
+                    run=run,
+                    sample=rs.sample,
+                    step_id=step_def["step_id"],
+                    step_name=step_def["step_name"],
+                    step_order=idx,
+                    status="PENDING",
+                )
 
         return Response(SampleRunSerializer(run).data, status=201)
 
@@ -134,7 +148,7 @@ class SampleRunViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def advance_status(self, request, pk=None):
-        """Advance run to next status."""
+        """Advance run to next status (meta-level only — does NOT cascade to per-sample steps)."""
         run = self.get_object()
         new_status = request.data.get("status", "")
         valid_statuses = dict(SampleRun._meta.get_field("status").choices)
@@ -143,33 +157,14 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         run.status = new_status
         run.save(update_fields=["status", "updated_at"])
 
-        # Cascade status to workflow steps
-        STATUS_ORDER = ["PLANNED", "LIBRARY_PREP", "SEQUENCING", "ANALYZING", "QC_REVIEW", "COMPLETED"]
-        if new_status == "PLANNED":
-            run.steps.all().update(status="PENDING")
-        elif new_status == "COMPLETED":
-            from django.utils import timezone
-            run.steps.all().update(status="COMPLETED")
-            for step in run.steps.filter(completed_at__isnull=True):
-                step.completed_at = timezone.now()
-                step.performed_by = request.user
-                step.save(update_fields=["completed_at", "performed_by"])
-        elif new_status == "FAILED":
-            run.steps.filter(status="IN_PROGRESS").update(status="FAILED")
-        elif new_status in STATUS_ORDER:
-            idx = STATUS_ORDER.index(new_status) + 1  # 2..5
-            for step in run.steps.order_by("step_order"):
-                if step.step_order < idx:
-                    step.status = "COMPLETED"
-                elif step.step_order == idx:
-                    step.status = "IN_PROGRESS"
-                else:
-                    step.status = "PENDING"
-                step.save(update_fields=["status"])
-
-        # Cascade status to linked samples
+        # Only when COMPLETED: auto-create reports and mark all linked samples COMPLETED
         from lims.apps.samples.models import Sample
+        from django.utils import timezone
+
         if new_status == "COMPLETED":
+            run.end_date = timezone.now()
+            run.save(update_fields=["end_date"])
+
             sample_ids = run.run_samples.values_list("sample_id", flat=True)
             Sample.objects.filter(id__in=sample_ids).update(status="COMPLETED")
 
@@ -251,11 +246,47 @@ class WorkflowStepViewSet(viewsets.ModelViewSet):
         return qs
 
     @action(detail=True, methods=["post"])
+    def start(self, request, pk=None):
+        step = self.get_object()
+        step.status = "IN_PROGRESS"
+        from django.utils import timezone
+        step.started_at = timezone.now()
+        step.performed_by = request.user
+        step.save(update_fields=["status", "started_at", "performed_by"])
+        return Response(WorkflowStepSerializer(step).data)
+
+    @action(detail=True, methods=["post"])
     def complete(self, request, pk=None):
+        """Complete a step with optional experiment notes."""
         step = self.get_object()
         step.status = "COMPLETED"
         from django.utils import timezone
         step.completed_at = timezone.now()
         step.performed_by = request.user
-        step.save(update_fields=["status", "completed_at", "performed_by"])
-        return Response({"status": "COMPLETED"})
+
+        # Optional experiment record fields
+        if "observations" in request.data:
+            step.observations = request.data["observations"]
+        if "reagent_lot_ids" in request.data:
+            step.reagents_used = request.data["reagent_lot_ids"]
+        if "instrument_id" in request.data:
+            from lims.apps.instruments.models import Instrument
+            try:
+                step.instrument = Instrument.objects.get(id=request.data["instrument_id"])
+            except Instrument.DoesNotExist:
+                pass
+        if "deviation_flag" in request.data:
+            step.deviation_flag = request.data["deviation_flag"]
+        if "deviation_note" in request.data:
+            step.deviation_note = request.data["deviation_note"]
+
+        step.save(update_fields=["status", "completed_at", "performed_by", "observations",
+                                  "reagents_used", "instrument", "deviation_flag", "deviation_note"])
+        return Response(WorkflowStepSerializer(step).data)
+
+    @action(detail=True, methods=["post"])
+    def skip(self, request, pk=None):
+        step = self.get_object()
+        step.status = "SKIPPED"
+        step.save(update_fields=["status"])
+        return Response(WorkflowStepSerializer(step).data)

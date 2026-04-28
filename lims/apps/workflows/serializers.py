@@ -85,16 +85,27 @@ class SampleRunDetailSerializer(SampleRunSerializer):
 
 class WorkflowStepSerializer(serializers.ModelSerializer):
     sample_barcode = serializers.CharField(source="sample.barcode", read_only=True, default=None)
+    performed_by_name = serializers.SerializerMethodField()
+    instrument_name = serializers.SerializerMethodField()
 
     class Meta:
         model = WorkflowStep
         fields = [
             "id", "run", "sample", "sample_barcode",
             "step_id", "step_name", "step_order", "status",
-            "started_at", "completed_at", "observations",
+            "started_at", "completed_at", "performed_by", "performed_by_name",
+            "reagents_used", "instrument", "instrument_name", "observations",
             "deviation_flag", "deviation_note", "created_at",
         ]
         read_only_fields = ["created_at"]
+
+    def get_performed_by_name(self, obj):
+        if obj.performed_by:
+            return f"{obj.performed_by.first_name} {obj.performed_by.last_name}".strip() or obj.performed_by.username
+        return None
+
+    def get_instrument_name(self, obj):
+        return obj.instrument.name if obj.instrument else None
 
 
 class WorkflowStepUpdateSerializer(serializers.Serializer):

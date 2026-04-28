@@ -51,11 +51,24 @@ export const runsApi = {
   list: (params?: Record<string, unknown>) =>
     api.get<Pageable<Run>>("/runs/", { params }),
   get: (id: string) => api.get<Run>(`/runs/${id}/`),
+  detail: (id: string) => api.get<Run>(`/runs/${id}/detail/`),
   create: (data: Record<string, unknown>) =>
     api.post<Run>("/runs/", data),
   advanceStatus: (id: string, status: string) =>
     api.post(`/runs/${id}/advance_status/`, { status }),
+  addSamples: (id: string, sample_ids: string[]) =>
+    api.post(`/runs/${id}/add_samples/`, { sample_ids }),
   stats: () => api.get<RunStats>("/runs/stats/"),
+};
+
+// ── Workflow Steps ─────────────────────────────────────────────
+export const stepsApi = {
+  list: (params?: Record<string, unknown>) =>
+    api.get<Pageable<any>>("/runs/steps/", { params }),
+  start: (id: string) => api.post(`/runs/steps/${id}/start/`),
+  complete: (id: string, data?: Record<string, unknown>) =>
+    api.post(`/runs/steps/${id}/complete/`, data),
+  skip: (id: string) => api.post(`/runs/steps/${id}/skip/`),
 };
 
 // ── Reports ───────────────────────────────────────────────────

@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
-import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message, Transfer, DatePicker, Tabs, Badge } from "antd";
+import { useState, useEffect, useMemo } from "react";
+import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message, Transfer, DatePicker, Tabs, Badge, Tooltip } from "antd";
 import type { TransferItem } from "antd/es/transfer";
-import { PlusOutlined, ReloadOutlined, EyeOutlined, ArrowRightOutlined, StepForwardOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import { PlusOutlined, ReloadOutlined, EyeOutlined, ArrowRightOutlined, StepForwardOutlined, CheckCircleOutlined, PlayCircleOutlined, FileTextOutlined, MinusCircleOutlined } from "@ant-design/icons";
 import DashboardLayout from "../components/DashboardLayout";
-import { runsApi, samplesApi, panelsApi, instrumentsApi } from "../api";
+import { runsApi, samplesApi, panelsApi, instrumentsApi, stepsApi } from "../api";
 import type { Run, Sample, TestPanel, Instrument } from "../api/types";
 import dayjs from "dayjs";
 import type { Dayjs } from "dayjs";
@@ -14,6 +14,10 @@ const { TextArea } = Input;
 const STATUS_COLORS: Record<string, string> = {
   PLANNED: "default", LIBRARY_PREP: "blue", SEQUENCING: "purple",
   ANALYZING: "orange", QC_REVIEW: "gold", COMPLETED: "green", FAILED: "red",
+};
+
+const STEP_STATUS_COLORS: Record<string, string> = {
+  PENDING: "default", IN_PROGRESS: "blue", COMPLETED: "green", SKIPPED: "orange", FAILED: "red",
 };
 
 const STATUS_OPTIONS = [
@@ -102,14 +106,19 @@ export default function Runs() {
     }
   }, [createOpen]);
 
-  // ── Run detail steps ──────────────────────────────────────────
+  // ── Run detail ──────────────────────────────────────────
   const [runDetail, setRunDetail] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [stepRecordModal, setStepRecordModal] = useState(false);
+  const [selectedStep, setSelectedStep] = useState<any>(null);
+  const [stepForm] = Form.useForm();
+  const [stepSubmitting, setStepSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState("matrix");
 
   const fetchRunDetail = async (runId: string) => {
     setDetailLoading(true);
     try {
-      const res = await runsApi.get(runId);
+      const res = await runsApi.detail(runId);
       setRunDetail(res.data);
     } catch {
       message.error("Failed to load run details");
@@ -121,8 +130,146 @@ export default function Runs() {
   const openSteps = (run: Run) => {
     setSelectedRun(run);
     setStepsVisible(true);
+    setActiveTab("matrix");
     fetchRunDetail(run.id);
   };
+
+  // ── Matrix helpers ────────────────────────────────────────
+  const matrixSteps = useMemo(() => {
+    const allSteps: any[] = runDetail?.steps || [];
+    const map = new Map<string, any>();
+    allSteps.forEach((s: any) => {
+      const key = s.step_id ?? s.step_name;
+      if (!map.has(key) || (s.step_order ?? 0) < (map.get(key)?.step_order ?? Infinity)) {
+        map.set(key, s);
+      }
+    });
+    return Array.from(map.values()).sort(
+      (a, b) => (a.step_order ?? 0) - (b.step_order ?? 0)
+    );
+  }, [runDetail?.steps]);
+
+  const samplesInRun = useMemo(() => {
+    return (runDetail?.run_samples || []) as any[];
+  }, [runDetail?.run_samples]);
+
+  const getStepForSample = (sampleId: string, stepId: string) => {
+    const allSteps: any[] = runDetail?.steps || [];
+    return allSteps.find(
+      (s: any) => s.sample === sampleId && (s.step_id ?? s.step_name) === stepId
+    );
+  };
+
+  const handleStepStart = async (step: any) => {
+    try {
+      await stepsApi.start(step.id);
+      message.success(`Step "${step.step_name}" started`);
+      if (selectedRun) fetchRunDetail(selectedRun.id);
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || "Failed to start step");
+    }
+  };
+
+  const handleStepComplete = async (values: any) => {
+    if (!selectedStep) return;
+    setStepSubmitting(true);
+    try {
+      const data: any = {};
+      if (values.observations) data.observations = values.observations;
+      if (values.reagent_lot_ids) data.reagent_lot_ids = values.reagent_lot_ids;
+      if (values.instrument_id) data.instrument_id = values.instrument_id;
+      if (values.deviation_flag) data.deviation_flag = true;
+      if (values.deviation_note) data.deviation_note = values.deviation_note;
+
+      await stepsApi.complete(selectedStep.id, data);
+      message.success(`Step "${selectedStep.step_name}" completed`);
+      setStepRecordModal(false);
+      stepForm.resetFields();
+      setSelectedStep(null);
+      if (selectedRun) fetchRunDetail(selectedRun.id);
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || "Failed to complete step");
+    } finally {
+      setStepSubmitting(false);
+    }
+  };
+
+  const handleStepSkip = async (step: any) => {
+    try {
+      await stepsApi.skip(step.id);
+      message.success(`Step "${step.step_name}" skipped`);
+      if (selectedRun) fetchRunDetail(selectedRun.id);
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || "Failed to skip step");
+    }
+  };
+
+  const matrixColumns = useMemo(() => {
+    const baseCols: any[] = [
+      {
+        title: "Sample",
+        key: "sample",
+        fixed: "left",
+        width: 220,
+        render: (_: unknown, record: any) => (
+          <div>
+            <Text strong copyable={{ text: record.sample_barcode }}>
+              {record.sample_barcode}
+            </Text>
+            <br />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {record.sample_patient_id || "—"}
+            </Text>
+          </div>
+        ),
+      },
+    ];
+    const stepCols = matrixSteps.map((step: any) => {
+      const sid = step.step_id ?? step.step_name;
+      return {
+        title: (
+          <Tooltip title={`Step ${step.step_order}: ${step.step_name}`}>
+            <span style={{ writingMode: "vertical-rl", textOrientation: "mixed", fontSize: 12 }}>
+              {step.step_name}
+            </span>
+          </Tooltip>
+        ),
+        key: sid,
+        width: 80,
+        align: "center" as const,
+        render: (_: unknown, record: any) => {
+          const s = getStepForSample(record.id, sid);
+          const status = s?.status || "PENDING";
+          const color = STEP_STATUS_COLORS[status] || "default";
+          return (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <Tag color={color} style={{ fontSize: 10, padding: "0 4px" }}>
+                {status === "COMPLETED" ? "✓" : status === "SKIPPED" ? "⊘" : status === "IN_PROGRESS" ? "▶" : "○"}
+              </Tag>
+              {status === "PENDING" && (
+                <Button.Group size="small">
+                  <Tooltip title="Start">
+                    <Button icon={<PlayCircleOutlined />} onClick={() => handleStepStart(s)} />
+                  </Tooltip>
+                  <Tooltip title="Skip">
+                    <Button icon={<MinusCircleOutlined />} onClick={() => handleStepSkip(s)} />
+                  </Tooltip>
+                </Button.Group>
+              )}
+              {status === "IN_PROGRESS" && (
+                <Button size="small" type="primary" style={{ fontSize: 10 }}
+                  onClick={() => { setSelectedStep(s); setStepRecordModal(true); }}
+                >
+                  Done
+                </Button>
+              )}
+            </div>
+          );
+        },
+      };
+    });
+    return [...baseCols, ...stepCols];
+  }, [matrixSteps, runDetail]);
 
   const columns = [
     { title: "Run #", dataIndex: "run_number", key: "run_number", width: 200,
@@ -337,32 +484,57 @@ export default function Runs() {
         </Form>
       </Modal>
 
-      {/* Run Detail / Steps Modal */}
+      {/* Run Detail Modal */}
       <Modal
         title={`Run: ${selectedRun?.run_number}`}
         open={stepsVisible}
         onCancel={() => setStepsVisible(false)}
         footer={<Button onClick={() => setStepsVisible(false)}>Close</Button>}
-        width={700}
+        width={900}
       >
         {selectedRun && (
           <div style={{ marginBottom: 16 }}>
-            <p><strong>Panel:</strong> {selectedRun.panel_name}</p>
-            <p><strong>Sequencer:</strong> {selectedRun.sequencer_name || "Not assigned"}</p>
-            <p><strong>Samples:</strong> {selectedRun.sample_count}</p>
-            <p><strong>Status:</strong> <Tag color={STATUS_COLORS[selectedRun.status]}>{selectedRun.status.replace(/_/g, " ")}</Tag></p>
+            <Space wrap size="large">
+              <span><strong>Panel:</strong> {selectedRun.panel_name}</span>
+              <span><strong>Sequencer:</strong> {selectedRun.sequencer_name || "Not assigned"}</span>
+              <span><strong>Samples:</strong> {selectedRun.sample_count}</span>
+              <span><strong>Status:</strong> <Tag color={STATUS_COLORS[selectedRun.status]}>{selectedRun.status.replace(/_/g, " ")}</Tag></span>
+            </Space>
           </div>
         )}
         <Tabs
-          defaultActiveKey="samples"
+          activeKey={activeTab}
+          onChange={setActiveTab}
           items={[
+            {
+              key: "matrix",
+              label: (
+                <span>
+                  <FileTextOutlined style={{ marginRight: 4 }} />
+                  Matrix
+                </span>
+              ),
+              children: detailLoading ? (
+                <Text type="secondary">Loading matrix...</Text>
+              ) : (
+                <Table
+                  size="small"
+                  scroll={{ x: matrixSteps.length * 90 + 220 }}
+                  dataSource={samplesInRun}
+                  rowKey="id"
+                  pagination={false}
+                  columns={matrixColumns}
+                  locale={{ emptyText: "No samples in this run" }}
+                />
+              ),
+            },
             {
               key: "samples",
               label: (
                 <span>
                   Samples
                   <Badge
-                    count={runDetail?.run_samples?.length ?? 0}
+                    count={samplesInRun.length}
                     style={{ marginLeft: 8, backgroundColor: "#1677ff" }}
                   />
                 </span>
@@ -372,7 +544,7 @@ export default function Runs() {
               ) : (
                 <Table
                   size="small"
-                  dataSource={runDetail?.run_samples || []}
+                  dataSource={samplesInRun}
                   rowKey="id"
                   pagination={false}
                   columns={[
@@ -406,35 +578,17 @@ export default function Runs() {
                     { title: "Step", dataIndex: "step_name", key: "name", render: (t: string, r: any) => (
                       <span>{r.step_order}. {t}</span>
                     )},
-                    { title: "Status", dataIndex: "status", key: "status", width: 120, render: (s: string) => (
-                      <Tag color={s === "COMPLETED" ? "green" : s === "IN_PROGRESS" ? "blue" : "default"}>{s.replace(/_/g, " ")}</Tag>
+                    { title: "Sample", dataIndex: "sample_barcode", key: "sample", width: 140, render: (t: string) => (
+                      <Text strong copyable={{ text: t }}>{t}</Text>
                     )},
-                    { title: "Performed By", dataIndex: "performed_by", key: "performed_by", width: 140, render: (_t: string, r: any) => (
-                      r.performed_by_name || "-"
+                    { title: "Status", dataIndex: "status", key: "status", width: 100, render: (s: string) => (
+                      <Tag color={STEP_STATUS_COLORS[s] || "default"}>{s.replace(/_/g, " ")}</Tag>
                     )},
-                    {
-                      title: "Action", key: "action", width: 100, render: (_: unknown, r: any) => (
-                        r.status === "IN_PROGRESS" ? (
-                          <Button size="small" type="primary" onClick={async () => {
-                            if (!selectedRun) return;
-                            const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(selectedRun.status) + 1];
-                            if (!nextStatus) return;
-                            try {
-                              await runsApi.advanceStatus(selectedRun.id, nextStatus);
-                              message.success(`Advanced to ${nextStatus.replace(/_/g, " ")}`);
-                              setSelectedRun((prev) => prev ? { ...prev, status: nextStatus } : prev);
-                              fetchRunDetail(selectedRun.id);
-                              fetchRuns();
-                            } catch (err: any) {
-                              const msg = err?.response?.data?.error || err?.response?.data?.detail || "Failed to advance status";
-                              message.error(msg);
-                            }
-                          }}>Complete</Button>
-                        ) : r.status === "COMPLETED" ? (
-                          <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                        ) : null
-                      ),
-                    },
+                    { title: "Performed By", dataIndex: "performed_by_name", key: "performer", width: 120, render: (t: string) => t || "-" },
+                    { title: "Instrument", dataIndex: "instrument_name", key: "instrument", width: 120, render: (t: string) => t || "-" },
+                    { title: "Observations", dataIndex: "observations", key: "obs", render: (t: string) => (
+                      <Text type="secondary" style={{ fontSize: 12 }}>{t || "-"}</Text>
+                    )},
                   ]}
                   locale={{ emptyText: "No workflow steps found" }}
                 />
@@ -442,6 +596,50 @@ export default function Runs() {
             },
           ]}
         />
+      </Modal>
+
+      {/* Step Record Modal */}
+      <Modal
+        title={`Record: ${selectedStep?.step_name || ""} — ${selectedStep?.sample_barcode || ""}`}
+        open={stepRecordModal}
+        onCancel={() => { setStepRecordModal(false); stepForm.resetFields(); setSelectedStep(null); }}
+        footer={null}
+        width={500}
+      >
+        <Form form={stepForm} layout="vertical" onFinish={handleStepComplete} style={{ marginTop: 16 }}>
+          <Form.Item name="observations" label="Observations / Notes">
+            <TextArea rows={3} placeholder="e.g. DNA concentration 45 ng/μL, OD260/280 1.85" />
+          </Form.Item>
+          <Form.Item name="reagent_lot_ids" label="Reagent Lot IDs">
+            <Input placeholder="e.g. KIT-202406-A, ENZ-202405-B" />
+          </Form.Item>
+          <Form.Item name="instrument_id" label="Instrument Used">
+            <Select
+              placeholder="Select instrument"
+              allowClear
+              options={instruments.map((i) => ({ value: i.id, label: `${i.name} (${i.model})` }))}
+            />
+          </Form.Item>
+          <Form.Item name="deviation_flag" valuePropName="checked">
+            <Space>
+              <input type="checkbox" id="deviation" />
+              <label htmlFor="deviation">Deviation / Exception occurred</label>
+            </Space>
+          </Form.Item>
+          <Form.Item name="deviation_note" label="Deviation Note">
+            <TextArea rows={2} placeholder="Describe any deviation from SOP..." />
+          </Form.Item>
+          <div style={{ textAlign: "right" }}>
+            <Space>
+              <Button onClick={() => { setStepRecordModal(false); stepForm.resetFields(); setSelectedStep(null); }}>
+                Cancel
+              </Button>
+              <Button type="primary" htmlType="submit" loading={stepSubmitting}>
+                Complete Step
+              </Button>
+            </Space>
+          </div>
+        </Form>
       </Modal>
     </DashboardLayout>
   );
