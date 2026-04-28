@@ -143,6 +143,30 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         run.status = new_status
         run.save(update_fields=["status", "updated_at"])
 
+        # Cascade status to workflow steps
+        STATUS_ORDER = ["PLANNED", "LIBRARY_PREP", "SEQUENCING", "ANALYZING", "QC_REVIEW", "COMPLETED"]
+        if new_status == "PLANNED":
+            run.steps.all().update(status="PENDING")
+        elif new_status == "COMPLETED":
+            from django.utils import timezone
+            run.steps.all().update(status="COMPLETED")
+            for step in run.steps.filter(completed_at__isnull=True):
+                step.completed_at = timezone.now()
+                step.performed_by = request.user
+                step.save(update_fields=["completed_at", "performed_by"])
+        elif new_status == "FAILED":
+            run.steps.filter(status="IN_PROGRESS").update(status="FAILED")
+        elif new_status in STATUS_ORDER:
+            idx = STATUS_ORDER.index(new_status)  # 1..4
+            for step in run.steps.order_by("step_order"):
+                if step.step_order < idx:
+                    step.status = "COMPLETED"
+                elif step.step_order == idx:
+                    step.status = "IN_PROGRESS"
+                else:
+                    step.status = "PENDING"
+                step.save(update_fields=["status"])
+
         # Cascade status to linked samples
         from lims.apps.samples.models import Sample
         if new_status == "COMPLETED":
