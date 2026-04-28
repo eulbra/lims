@@ -62,6 +62,7 @@ export const runsApi = {
 export const reportsApi = {
   list: (params?: Record<string, unknown>) =>
     api.get<Pageable<Report>>("/reports/", { params }),
+  get: (id: string) => api.get<Report>(`/reports/${id}/`),
   review: (id: string) => api.post(`/reports/${id}/review/`),
   verify: (id: string) => api.post(`/reports/${id}/verify/`),
   sign: (id: string, password: string) =>

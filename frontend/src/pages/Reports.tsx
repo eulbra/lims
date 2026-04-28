@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Table, Card, Space, Tag, Typography, Input, Modal, message, Popconfirm, Button } from "antd";
-import { SearchOutlined, EyeOutlined, CheckCircleOutlined, SendOutlined, FileProtectOutlined, EditOutlined, ReloadOutlined } from "@ant-design/icons";
+import { Table, Card, Space, Tag, Typography, Input, Modal, message, Popconfirm, Button, Descriptions, Divider } from "antd";
+import { SearchOutlined, EyeOutlined, CheckCircleOutlined, SendOutlined, FileProtectOutlined, EditOutlined, ReloadOutlined, DownloadOutlined } from "@ant-design/icons";
 import DashboardLayout from "../components/DashboardLayout";
 import { reportsApi } from "../api";
 import type { Report } from "../api/types";
@@ -25,6 +25,11 @@ export default function Reports() {
   const [tableLoading, setTableLoading] = useState(true);
   const [data, setData] = useState<Report[]>([]);
   const [searchText, setSearchText] = useState("");
+
+  // View detail modal
+  const [viewModal, setViewModal] = useState(false);
+  const [viewReport, setViewReport] = useState<Report | null>(null);
+  const [viewLoading, setViewLoading] = useState(false);
 
   const fetchReports = async () => {
     setTableLoading(true);
@@ -66,6 +71,39 @@ export default function Reports() {
     }
   };
 
+  const openView = async (report: Report) => {
+    setViewLoading(true);
+    setViewModal(true);
+    try {
+      const res = await reportsApi.get(report.id);
+      setViewReport(res.data);
+    } catch {
+      message.error("Failed to load report details");
+      setViewModal(false);
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const handleDownload = (report: Report) => {
+    if (report.pdf_file_path) {
+      window.open(report.pdf_file_path, "_blank");
+    } else if (report.content) {
+      const blob = new Blob([JSON.stringify(report.content, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${report.report_number}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      message.success("Report content downloaded as JSON");
+    } else {
+      message.info("No downloadable content available yet");
+    }
+  };
+
   const filtered = data.filter((r) =>
     searchText
       ? r.report_number.toLowerCase().includes(searchText.toLowerCase())
@@ -90,13 +128,16 @@ export default function Reports() {
     { title: "Released", dataIndex: "released_at", key: "released_at", width: 140,
       render: (d: string) => d ? new Date(d).toLocaleDateString() : <Text type="secondary">—</Text>,
     },
-    { title: "Actions", key: "actions", width: 300,
+    { title: "Actions", key: "actions", width: 320,
       render: (_: unknown, record: Report) => {
         const cfg = STATUS_CFG[record.status];
         if (!cfg) return null;
         return (
           <Space size="small">
-            <Button icon={<EyeOutlined />} size="small" type="text" title="View" />
+            <Button icon={<EyeOutlined />} size="small" type="text" title="View"
+              onClick={() => openView(record)} />
+            <Button icon={<DownloadOutlined />} size="small" type="text" title="Download"
+              onClick={() => handleDownload(record)} />
             {cfg.actions.includes("review") && (
               <Popconfirm title="Review this report?" onConfirm={() => handleAction(record, "review")}>
                 <Button icon={<CheckCircleOutlined />} size="small" type="text" style={{ color: "#1677ff" }} title="Review" />
@@ -143,6 +184,82 @@ export default function Reports() {
         <Table<Report> columns={columns} dataSource={filtered} rowKey="id" loading={tableLoading}
           pagination={{ showTotal: (t) => `Total ${t} reports` }} />
       </Card>
+
+      {/* Report Detail View Modal */}
+      <Modal
+        title={viewReport ? `Report: ${viewReport.report_number}` : "Report Detail"}
+        open={viewModal}
+        onCancel={() => { setViewModal(false); setViewReport(null); }}
+        footer={
+          <Space>
+            {viewReport && (
+              <Button icon={<DownloadOutlined />} onClick={() => handleDownload(viewReport)}>
+                Download
+              </Button>
+            )}
+            <Button onClick={() => { setViewModal(false); setViewReport(null); }}>Close</Button>
+          </Space>
+        }
+        width={700}
+      >
+        {viewLoading ? (
+          <Text type="secondary">Loading report details...</Text>
+        ) : viewReport ? (
+          <div>
+            <Descriptions size="small" bordered column={2}>
+              <Descriptions.Item label="Report #">{viewReport.report_number}</Descriptions.Item>
+              <Descriptions.Item label="Version">{viewReport.version_number}</Descriptions.Item>
+              <Descriptions.Item label="Sample">{viewReport.sample_barcode}</Descriptions.Item>
+              <Descriptions.Item label="Patient">{viewReport.patient_name}</Descriptions.Item>
+              <Descriptions.Item label="Panel">{viewReport.panel_code || "—"}</Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag color={STATUS_CFG[viewReport.status]?.color || "default"}>
+                  {STATUS_CFG[viewReport.status]?.label || viewReport.status}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Reviewed">
+                {viewReport.reviewed_by_name
+                  ? `${viewReport.reviewed_by_name} (${viewReport.reviewed_at ? new Date(viewReport.reviewed_at).toLocaleDateString() : ""})`
+                  : "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Verified">
+                {viewReport.verified_by_name
+                  ? `${viewReport.verified_by_name} (${viewReport.verified_at ? new Date(viewReport.verified_at).toLocaleDateString() : ""})`
+                  : "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Signed">
+                {viewReport.signed_by_name
+                  ? `${viewReport.signed_by_name} (${viewReport.signed_at ? new Date(viewReport.signed_at).toLocaleDateString() : ""})`
+                  : "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Released">
+                {viewReport.released_at ? new Date(viewReport.released_at).toLocaleDateString() : "—"}
+              </Descriptions.Item>
+            </Descriptions>
+
+            {viewReport.content && Object.keys(viewReport.content).length > 0 && (
+              <>
+                <Divider orientation="left">Report Content</Divider>
+                <pre style={{ background: "#f6ffed", padding: 12, borderRadius: 6, maxHeight: 400, overflow: "auto", fontSize: 12 }}>
+                  {JSON.stringify(viewReport.content, null, 2)}
+                </pre>
+              </>
+            )}
+
+            {viewReport.pdf_file_path && (
+              <>
+                <Divider />
+                <Button type="primary" icon={<DownloadOutlined />} block
+                  onClick={() => window.open(viewReport.pdf_file_path!, "_blank")}>
+                  Open PDF
+                </Button>
+              </>
+            )}
+          </div>
+        ) : (
+          <Text type="secondary">No report selected</Text>
+        )}
+      </Modal>
 
       {/* 21 CFR Part 11 E-Signature Modal */}
       <Modal

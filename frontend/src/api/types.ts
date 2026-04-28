@@ -106,12 +106,23 @@ export interface RunStats {
 export interface Report {
   id: string;
   report_number: string;
+  sample: string;
   sample_barcode: string;
   patient_name: string;
+  panel_code: string;
   status: string;
   version_number: number;
+  pdf_file_path?: string;
+  content?: Record<string, unknown>;
+  reviewed_by_name?: string;
+  reviewed_at?: string;
+  verified_by_name?: string;
+  verified_at?: string;
+  signed_by_name?: string;
+  signed_at?: string;
   released_at: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 
