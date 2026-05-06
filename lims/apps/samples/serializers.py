@@ -55,7 +55,7 @@ class SampleSerializer(serializers.ModelSerializer):
 
     def _generate_barcode(self):
         today = datetime.date.today().strftime("%Y%m%d")
-        count = Sample.objects.filter(barcode__startswith=f"SMP-{today}").count() + 1
+        count = Sample.objects.filter(sample_id__startswith=f"SMP-{today}").count() + 1
         return f"SMP-{today}-{count:04d}"
 
     def _get_default_site(self):
@@ -124,8 +124,14 @@ class SampleReceiveSerializer(serializers.ModelSerializer):
         if "receipt_time" not in validated_data or validated_data.get("receipt_time") is None:
             validated_data["receipt_time"] = now.time()
 
+        # Set collection date/time defaults if not provided
+        if "collection_date" not in validated_data or validated_data.get("collection_date") is None:
+            validated_data["collection_date"] = now.date()
+        if "collection_time" not in validated_data or validated_data.get("collection_time") is None:
+            validated_data["collection_time"] = now.time()
+
         # Auto-generate sample_id
-        validated_data["sample_id"] = self._generate_sample_id()
+        validated_data["sample_id"] = self._generate_barcode()
 
         # Set site from user
         user_site = getattr(user, 'site', None)
@@ -139,7 +145,7 @@ class SampleReceiveSerializer(serializers.ModelSerializer):
 
     def _generate_barcode(self):
         today = datetime.date.today().strftime("%Y%m%d")
-        count = Sample.objects.filter(barcode__startswith=f"SMP-{today}").count() + 1
+        count = Sample.objects.filter(sample_id__startswith=f"SMP-{today}").count() + 1
         return f"SMP-{today}-{count:04d}"
 
     def _get_default_site(self):
