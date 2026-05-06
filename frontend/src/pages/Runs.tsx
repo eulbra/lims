@@ -418,7 +418,7 @@ export default function Runs() {
   const columns = [
     { title: "Run #", dataIndex: "run_number", key: "run_number", width: 200,
       render: (t: string) => <Text strong>{t}</Text> },
-    { title: "Barcode", dataIndex: "barcode", key: "barcode", width: 150,
+    { title: "Batch ID", dataIndex: "barcode", key: "barcode", width: 150,
       render: (t: string) => t || <Text type="secondary">—</Text> },
     { title: "Panel", dataIndex: "panel_code", key: "panel_code", width: 120,
       render: (t: string) => <Tag color="blue">{t}</Tag> },
@@ -655,7 +655,8 @@ export default function Runs() {
                   const a = sampleAssignments[sid] || {};
                   return {
                     sample_id: sid,
-                    barcode: a.barcode || s?.sample_id || sid.slice(0, 8),
+                    sample_code: s?.sample_id || sid.slice(0, 8),
+                    barcode: a.barcode || "",
                     patient_name: s?.patient_name || "N/A",
                     well_position: a.well_position || "",
                     index_sequence: a.index_sequence || "",
@@ -664,6 +665,7 @@ export default function Runs() {
                 })}
                 rowKey="sample_id"
                 columns={[
+                  { title: "Sample ID", dataIndex: "sample_code", key: "sample_code", width: 140, render: (t: string) => <Text code copyable={{ text: t }}>{t}</Text> },
                   { title: "Barcode", dataIndex: "barcode", key: "barcode", width: 140, render: (_: any, r: any) => (
                     <Input size="small" placeholder="Scan barcode" value={r.barcode} onChange={(e) => setSampleAssignments((prev) => ({ ...prev, [r.sample_id]: { ...prev[r.sample_id], barcode: e.target.value } }))} />
                   )},
