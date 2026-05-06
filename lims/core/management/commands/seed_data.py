@@ -195,7 +195,7 @@ class Command(BaseCommand):
 
             barcode = f"{panel_code[:4].upper()}-2026-{i+1:04d}"
             sample, created = Sample.objects.get_or_create(
-                sample_id=sample_id,
+                sample_id=barcode,
                 defaults={
                     "sample_type": st,
                     "patient_id": f"PT-{2026000 + i + 1}",
@@ -267,10 +267,13 @@ class Command(BaseCommand):
             for panel_code in ["NIPT", "NIPT_PLUS", "HPV"]:
                 panel = TestPanel.objects.filter(code=panel_code, site=site).first()
                 for lang in ["en", "zh"]:
-                    ReportTemplate.objects.get_or_create(
-                        panel=panel, code=f"{panel_code.lower()}_v1_{lang}", language=lang,
-                        defaults={"name": f"{panel_code} Report ({lang.upper()})", "template_content": {"title": panel_code, "version": 1}}
-                    )
+                    tmpl_code = f"{panel_code.lower()}_v1_{lang}"
+                    if not ReportTemplate.objects.filter(panel=panel, code=tmpl_code).exists():
+                        ReportTemplate.objects.create(
+                            panel=panel, code=tmpl_code, language=lang,
+                            name=f"{panel_code} Report ({lang.upper()})",
+                            template_content={"title": panel_code, "version": 1}
+                        )
         self.stdout.write(f"  +  {ReportTemplate.objects.count()} report templates")
 
         # 11. QC CONTROL MATERIALS AND CHARTS
