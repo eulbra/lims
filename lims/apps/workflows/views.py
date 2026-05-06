@@ -46,6 +46,11 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         qs = SampleRun.objects.all().select_related("panel", "sequencer", "operator")
         if self.request.user.site_id:
             qs = qs.filter(site=self.request.user.site)
+        params = self.request.query_params
+        if "planned_date__from" in params:
+            qs = qs.filter(planned_date__gte=params["planned_date__from"])
+        if "planned_date__to" in params:
+            qs = qs.filter(planned_date__lte=params["planned_date__to"])
         return qs
 
     def get_serializer_class(self):
@@ -85,9 +90,21 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         )
 
         sample_ids = data.get("samples", [])
+        sample_assignments = data.get("sample_assignments", {})
         run_samples = []
         for sid in sample_ids:
+            asgn = sample_assignments.get(str(sid), {})
             rs, _ = RunSample.objects.get_or_create(run=run, sample_id=sid)
+            if asgn.get("well_position"):
+                rs.well_position = asgn["well_position"]
+            if asgn.get("index_sequence"):
+                rs.index_sequence = asgn["index_sequence"]
+            if asgn.get("pool_group"):
+                rs.pool_group = asgn["pool_group"]
+            if asgn.get("barcode"):
+                rs.barcode = asgn["barcode"]
+            if any([asgn.get("well_position"), asgn.get("index_sequence"), asgn.get("pool_group"), asgn.get("barcode")]):
+                rs.save(update_fields=["well_position", "index_sequence", "pool_group", "barcode"])
             run_samples.append(rs)
             # Update sample status to IN_PROCESS
             Sample.objects.filter(id=sid).update(status="IN_PROCESS")
@@ -167,6 +184,22 @@ class SampleRunViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
+    def update_results(self, request, pk=None):
+        """Update result_summary for run samples."""
+        run = self.get_object()
+        results = request.data.get("results", {})
+        updated = []
+        for rs_id, rs_data in results.items():
+            try:
+                rs = RunSample.objects.get(id=rs_id, run=run)
+                rs.result_summary = rs_data
+                rs.save(update_fields=["result_summary"])
+                updated.append(str(rs.id))
+            except RunSample.DoesNotExist:
+                continue
+        return Response({"updated": len(updated), "run_sample_ids": updated})
+
+    @action(detail=True, methods=["post"])
     def add_samples(self, request, pk=None):
         """Add samples to a run."""
         run = self.get_object()
@@ -226,7 +259,7 @@ class SampleRunViewSet(viewsets.ModelViewSet):
                 content = {
                     "run_number": run.run_number,
                     "panel": run.panel.code if run.panel else "",
-                    "sample_barcode": sample.barcode,
+                    "sample_barcode": sample.sample_id,
                     "patient_id": sample.patient_id,
                     "patient_name": sample.patient_name,
                     "patient_dob": str(sample.patient_dob) if sample.patient_dob else None,

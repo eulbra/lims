@@ -5,8 +5,8 @@ from .views import WorkflowProtocolViewSet, SampleRunViewSet, WorkflowStepViewSe
 
 router = DefaultRouter()
 router.register("protocols", WorkflowProtocolViewSet, basename="protocol")
-router.register("", SampleRunViewSet, basename="run")
 router.register("steps", WorkflowStepViewSet, basename="step")
+router.register("", SampleRunViewSet, basename="run")
 
 app_name = "workflows"
 

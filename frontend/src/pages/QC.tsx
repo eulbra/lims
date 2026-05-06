@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import {
   Table, Card, Button, Space, Tag, Typography, Input,
   Modal, Form, Select, message, Tabs, Descriptions, Statistic, Row, Col,
-  DatePicker, Alert, Empty, Spin,
+  DatePicker, Alert, Empty, Spin, Popconfirm,
 } from "antd";
 import {
   PlusOutlined, EyeOutlined,
   AlertOutlined, LineChartOutlined, CheckCircleOutlined,
   CloseCircleOutlined, WarningOutlined, ReloadOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { qcApi } from "../api";
@@ -86,6 +87,16 @@ function MaterialsTab() {
     return d;
   };
 
+  const handleDeleteMaterial = async (id: string) => {
+    try {
+      await qcApi.deleteMaterial(id);
+      message.success("质控品已删除");
+      fetch(page);
+    } catch {
+      message.error("删除失败");
+    }
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
@@ -133,6 +144,21 @@ function MaterialsTab() {
           }}
         />
         <Table.Column title="指标数" dataIndex="target_values" render={(v: Record<string, unknown>) => Object.keys(v || {}).length} />
+        <Table.Column
+          title="操作"
+          key="actions"
+          width={80}
+          render={(_: unknown, r: QCControlMaterial) => (
+            <Popconfirm
+              title="确定删除此质控品？"
+              onConfirm={() => handleDeleteMaterial(r.id)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          )}
+        />
       </Table>
 
       <Modal
@@ -175,10 +201,20 @@ function MaterialsTab() {
 
 // ── QC Runs Tab ────────────────────────────────────────────
 function RunsTab() {
-  const { items, total, page, loading, setPage } = usePaginated(
+  const { items, total, page, loading, fetch, setPage } = usePaginated(
     ({ page, size }) =>
       qcApi.listRuns({ page, page_size: size, ordering: "-created_at" }),
   );
+
+  const handleDeleteRun = async (id: string) => {
+    try {
+      await qcApi.deleteRun(id);
+      message.success("QC运行已删除");
+      fetch(page);
+    } catch {
+      message.error("删除失败");
+    }
+  };
 
   return (
     <div>
@@ -248,6 +284,21 @@ function RunsTab() {
           dataIndex="created_at"
           render={(v: string) => dayjs(v).format("YYYY-MM-DD HH:mm")}
         />
+        <Table.Column
+          title="操作"
+          key="actions"
+          width={80}
+          render={(_: unknown, r: QCRun) => (
+            <Popconfirm
+              title="确定删除此QC运行记录？"
+              onConfirm={() => handleDeleteRun(r.id)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          )}
+        />
       </Table>
     </div>
   );
@@ -285,6 +336,16 @@ function ChartsTab() {
     fetchCharts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleDeleteChart = async (id: string) => {
+    try {
+      await qcApi.deleteChart(id);
+      message.success("图表已删除");
+      fetchCharts();
+    } catch {
+      message.error("删除失败");
+    }
+  };
 
   // Simple SVG-based Levey-Jennings chart
   const renderChart = (chart: QCChart) => {
@@ -419,6 +480,22 @@ function ChartsTab() {
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {c.control_material_name}
                 </Text>
+                <div style={{ marginTop: 4, textAlign: "right" }}>
+                  <Popconfirm
+                    title="确定删除此图表？"
+                    onConfirm={() => handleDeleteChart(c.id)}
+                    okText="确定"
+                    cancelText="取消"
+                    onPopupClick={(e) => e.stopPropagation()}
+                  >
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </Popconfirm>
+                </div>
               </Card>
             ))
           )}
@@ -494,6 +571,16 @@ function EventsTab() {
       fetch(page);
     } catch {
       message.error("更新失败");
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    try {
+      await qcApi.deleteEvent(id);
+      message.success("事件已删除");
+      fetch(page);
+    } catch {
+      message.error("删除失败");
     }
   };
 
@@ -619,7 +706,7 @@ function EventsTab() {
         <Table.Column
           title="操作"
           key="actions"
-          width={200}
+          width={260}
           render={(_: unknown, r: QCEvent) => (
             <Space>
               {r.status === "OPEN" && (
@@ -649,6 +736,14 @@ function EventsTab() {
                 icon={<EyeOutlined />}
                 onClick={() => setEditingEvent(r)}
               />
+              <Popconfirm
+                title="确定删除此事件？"
+                onConfirm={() => handleDeleteEvent(r.id)}
+                okText="确定"
+                cancelText="取消"
+              >
+                <Button size="small" danger icon={<DeleteOutlined />} />
+              </Popconfirm>
             </Space>
           )}
         />

@@ -5,7 +5,7 @@ import {
 } from "antd";
 import {
   PlusOutlined, SendOutlined, CheckCircleOutlined,
-  SwapOutlined, ReadOutlined,
+  SwapOutlined, ReadOutlined, DeleteOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import api from "../api/client";
@@ -127,6 +127,16 @@ export default function Documents() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      await api.delete(`/documents/documents/${id}/`);
+      message.success("文档已删除");
+      fetchDocs();
+    } catch {
+      message.error("删除失败");
+    }
+  };
+
   const fetchAcks = async (doc: Document) => {
     setSelectedDoc(doc);
     setAckModalOpen(true);
@@ -231,6 +241,9 @@ export default function Documents() {
             </Popconfirm>
           )}
           <Button size="small" icon={<ReadOutlined />} onClick={() => fetchAcks(r)}>确认记录</Button>
+          <Popconfirm title="确定删除此文档？" onConfirm={() => handleDelete(r.id)}>
+            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+          </Popconfirm>
         </Space>
       ),
     },

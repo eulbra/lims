@@ -38,7 +38,7 @@ class WorkflowProtocolDetailSerializer(WorkflowProtocolSerializer):
 
 
 class RunSampleSerializer(serializers.ModelSerializer):
-    sample_barcode = serializers.CharField(source="sample.barcode", read_only=True)
+    sample_barcode = serializers.CharField(source="sample.sample_id", read_only=True)
     sample_patient_id = serializers.CharField(source="sample.patient_id", read_only=True, default="")
 
     class Meta:
@@ -46,7 +46,7 @@ class RunSampleSerializer(serializers.ModelSerializer):
         fields = [
             "id", "run", "sample", "sample_barcode", "sample_patient_id",
             "well_position", "plate_number", "index_sequence", "index_combo_id",
-            "pool_group", "status", "result_summary", "created_at",
+            "pool_group", "barcode", "status", "result_summary", "created_at",
         ]
         read_only_fields = ["created_at"]
 
@@ -61,7 +61,7 @@ class SampleRunSerializer(serializers.ModelSerializer):
     class Meta:
         model = SampleRun
         fields = [
-            "id", "run_number", "panel", "panel_code", "panel_name",
+            "id", "run_number", "barcode", "panel", "panel_code", "panel_name",
             "protocol", "sequencer", "sequencer_name", "status",
             "planned_date", "start_date", "end_date",
             "operator", "operator_name", "notes",
@@ -85,8 +85,8 @@ class SampleRunCreateSerializer(serializers.Serializer):
     sequencer = serializers.UUIDField(required=False)
     samples = serializers.ListField(child=serializers.UUIDField())
     planned_date = serializers.DateField(required=False)
-    index_assignments = serializers.DictField(required=False)
-    # e.g. {"uuid-1": {"well": "A01", "index": "N701+S501"}}
+    sample_assignments = serializers.DictField(required=False)
+    # e.g. {"uuid-1": {"well_position": "A01", "index_sequence": "N701+S501", "pool_group": "Pool-A"}}
     notes = serializers.CharField(required=False)
 
 
@@ -103,7 +103,7 @@ class SampleRunDetailSerializer(SampleRunSerializer):
 
 
 class WorkflowStepSerializer(serializers.ModelSerializer):
-    sample_barcode = serializers.CharField(source="sample.barcode", read_only=True, default=None)
+    sample_barcode = serializers.CharField(source="sample.sample_id", read_only=True, default=None)
     performed_by_name = serializers.SerializerMethodField()
     instrument_name = serializers.SerializerMethodField()
 

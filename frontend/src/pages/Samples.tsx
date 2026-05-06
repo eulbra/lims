@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import {
   Table, Card, Button, Space, Tag, Typography, Input,
-  Modal, Form, Select, message, Tooltip, DatePicker,
+  Modal, Form, Select, message, Tooltip, DatePicker, Popconfirm,
 } from "antd";
 import {
   PlusOutlined, SearchOutlined, BarcodeOutlined,
   ReloadOutlined, CheckOutlined, CloseOutlined, EditOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { samplesApi, panelsApi } from "../api";
@@ -15,6 +16,7 @@ import DashboardLayout from "../components/DashboardLayout";
 
 const { Text } = Typography;
 const { Search } = Input;
+const { RangePicker } = DatePicker;
 
 // ── Status colors ─────────────────────────────────────────────
 const STATUS_COLOR: Record<string, string> = {
@@ -59,13 +61,14 @@ export default function Samples() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [panelFilter, setPanelFilter] = useState<string | null>(null);
   const [sampleTypeFilter, setSampleTypeFilter] = useState<string | null>(null);
-  const [dateFilter, setDateFilter] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<[string | null, string | null]>([null, null]);
 
   const filters: Record<string, unknown> = {};
   if (statusFilter) filters.status = statusFilter;
   if (panelFilter) filters.panel = panelFilter;
   if (sampleTypeFilter) filters.sample_type = sampleTypeFilter;
-  if (dateFilter) filters.receipt_date = dateFilter;
+  if (dateRange[0]) filters.receipt_date__from = dateRange[0];
+  if (dateRange[1]) filters.receipt_date__to = dateRange[1];
 
   const { items, total, page, loading, fetch, setPage, setSearch, search } =
     usePaginated(
@@ -81,11 +84,21 @@ export default function Samples() {
     }).catch(() => setPanels([]));
   }, []);
 
+  const handleDelete = async (record: Sample) => {
+    try {
+      await samplesApi.delete(record.id);
+      message.success(`Deleted ${record.sample_id}`);
+      fetch();
+    } catch {
+      message.error("Failed to delete sample");
+    }
+  };
+
   const columns = [
     {
-      title: "Barcode",
-      dataIndex: "barcode",
-      key: "barcode",
+      title: "Sample ID",
+      dataIndex: "sample_id",
+      key: "sample_id",
       width: 180,
       fixed: "left" as const,
       render: (t: string) => (
@@ -126,7 +139,7 @@ export default function Samples() {
     {
       title: "Actions",
       key: "actions",
-      width: 180,
+      width: 220,
       fixed: "right" as const,
       render: (_: unknown, record: Sample) => (
         <Space size="small">
@@ -156,7 +169,7 @@ export default function Samples() {
                   onClick={async () => {
                     try {
                       await samplesApi.accept(record.id);
-                      message.success(`Accepted ${record.barcode}`);
+                      message.success(`Accepted ${record.sample_id}`);
                       fetch();
                     } catch {
                       message.error("Failed to accept sample");
@@ -176,6 +189,17 @@ export default function Samples() {
               </Tooltip>
             </>
           )}
+          <Popconfirm
+            title="Delete sample?"
+            description={`This will delete ${record.sample_id}. Confirm?`}
+            onConfirm={() => handleDelete(record)}
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+          >
+            <Tooltip title="Delete">
+              <Button icon={<DeleteOutlined />} size="small" type="text" danger />
+            </Tooltip>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -188,7 +212,7 @@ export default function Samples() {
       const reason = values.reason || "OTHER";
       const note = values.note || "";
       await samplesApi.reject(rejectSample.id, reason, note);
-      message.warning(`Rejected ${rejectSample.barcode}`);
+      message.warning(`Rejected ${rejectSample.sample_id}`);
       setRejectOpen(false);
       rejectForm.resetFields();
       setRejectSample(null);
@@ -287,7 +311,7 @@ export default function Samples() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <Space wrap>
             <Search
-              placeholder="Search barcode or patient ID..."
+              placeholder="Search sample ID or patient ID..."
               prefix={<SearchOutlined />}
               style={{ width: 280 }}
               value={search}
@@ -319,12 +343,24 @@ export default function Samples() {
               value={sampleTypeFilter}
               onChange={(v) => setSampleTypeFilter(v)}
             />
-            <DatePicker
-              placeholder="Receipt date"
-              style={{ width: 140 }}
+            <RangePicker
+              placeholder={["From", "To"]}
+              style={{ width: 240 }}
               format="YYYY-MM-DD"
-              value={dateFilter ? dayjs(dateFilter) : null}
-              onChange={(d) => setDateFilter(d ? d.format("YYYY-MM-DD") : null)}
+              value={[
+                dateRange[0] ? dayjs(dateRange[0]) : null,
+                dateRange[1] ? dayjs(dateRange[1]) : null,
+              ]}
+              onChange={(dates) => {
+                if (dates && dates[0] && dates[1]) {
+                  setDateRange([
+                    dates[0].format("YYYY-MM-DD"),
+                    dates[1].format("YYYY-MM-DD"),
+                  ]);
+                } else {
+                  setDateRange([null, null]);
+                }
+              }}
               allowClear
             />
             <Button
@@ -429,7 +465,7 @@ export default function Samples() {
 
       {/* ── Edit Sample Modal ──────────────────────────────── */}
       <Modal
-        title={`Edit Sample: ${editSample?.barcode || ""}`}
+        title={`Edit Sample: ${editSample?.sample_id || ""}`}
         open={editOpen}
         onCancel={() => { setEditOpen(false); setEditSample(null); editForm.resetFields(); }}
         footer={null}
@@ -466,7 +502,7 @@ export default function Samples() {
 
       {/* ── Reject Sample Modal ────────────────────────────── */}
       <Modal
-        title={`Reject sample ${rejectSample?.barcode || ""}`}
+        title={`Reject sample ${rejectSample?.sample_id || ""}`}
         open={rejectOpen}
         onCancel={() => {
           setRejectOpen(false);

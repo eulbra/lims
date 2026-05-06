@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import {
   Table, Card, Button, Tag, Typography, Tabs,
-  message, Statistic, Row, Col,
+  message, Statistic, Row, Col, Popconfirm,
 } from "antd";
 import {
   ReloadOutlined, FileTextOutlined,
   TeamOutlined, BarChartOutlined,
   CheckCircleOutlined, ExclamationCircleOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import api from "../api/client";
@@ -113,6 +114,16 @@ function TrainingRecordsTab() {
 
   useEffect(() => { fetch(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleDeleteTraining = async (id: string) => {
+    try {
+      await api.delete(`/training/records/${id}/`);
+      message.success("培训记录已删除");
+      fetch();
+    } catch {
+      message.error("删除培训记录失败");
+    }
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
@@ -189,12 +200,29 @@ function TrainingRecordsTab() {
             width: 160,
             render: (v: string) => dayjs(v).format("YYYY-MM-DD HH:mm"),
           },
+          {
+            title: "操作",
+            width: 80,
+            fixed: "right" as const,
+            render: (_: unknown, record: TrainingRecord) => (
+              <Popconfirm
+                title="确认删除"
+                description="确定要删除这条培训记录吗？"
+                onConfirm={() => handleDeleteTraining(record.id)}
+                okText="删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+              >
+                <Button type="text" danger icon={<DeleteOutlined />} size="small" />
+              </Popconfirm>
+            ),
+          },
         ]}
         pagination={{
           current: page, pageSize: 20, total, onChange: (p) => fetch(p),
           showSizeChanger: false, showTotal: (t) => `共 ${t} 条`,
         }}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 1100 }}
       />
     </div>
   );
@@ -222,6 +250,16 @@ function CompetencyTab() {
   };
 
   useEffect(() => { fetch(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDeleteCompetency = async (id: string) => {
+    try {
+      await api.delete(`/training/competencies/${id}/`);
+      message.success("能力评估已删除");
+      fetch();
+    } catch {
+      message.error("删除能力评估失败");
+    }
+  };
 
   return (
     <div>
@@ -254,12 +292,29 @@ function CompetencyTab() {
           { title: "评估日期", dataIndex: "assessment_date", width: 130, render: (v: string) => dayjs(v).format("YYYY-MM-DD") },
           { title: "备注", dataIndex: "notes", render: (v: string) => v || "—", ellipsis: { showTitle: true } },
           { title: "创建时间", dataIndex: "created_at", width: 160, render: (v: string) => dayjs(v).format("YYYY-MM-DD HH:mm") },
+          {
+            title: "操作",
+            width: 80,
+            fixed: "right" as const,
+            render: (_: unknown, record: CompetencyAssessment) => (
+              <Popconfirm
+                title="确认删除"
+                description="确定要删除这条能力评估吗？"
+                onConfirm={() => handleDeleteCompetency(record.id)}
+                okText="删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true }}
+              >
+                <Button type="text" danger icon={<DeleteOutlined />} size="small" />
+              </Popconfirm>
+            ),
+          },
         ]}
         pagination={{
           current: page, pageSize: 20, total, onChange: (p) => fetch(p),
           showSizeChanger: false, showTotal: (t) => `共 ${t} 条`,
         }}
-        scroll={{ x: 1000 }}
+        scroll={{ x: 1100 }}
       />
     </div>
   );

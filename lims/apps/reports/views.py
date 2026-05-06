@@ -81,10 +81,12 @@ class ReportViewSet(viewsets.ModelViewSet):
         report = self.get_object()
         sample = report.sample
         run = report.run_sample.run if report.run_sample else None
+        # Pull result_summary from run_sample if available
+        results_data = report.run_sample.result_summary if report.run_sample else {}
         content = {
             "report_number": report.report_number,
             "panel": sample.panel.code if sample.panel else "",
-            "sample_barcode": sample.barcode,
+            "sample_barcode": sample.sample_id,
             "patient_id": sample.patient_id,
             "patient_name": sample.patient_name,
             "patient_dob": str(sample.patient_dob) if sample.patient_dob else None,
@@ -95,6 +97,7 @@ class ReportViewSet(viewsets.ModelViewSet):
             "ordering_facility": sample.ordering_facility,
             "run_number": run.run_number if run else None,
             "sequencer": run.sequencer.name if run and run.sequencer else None,
+            "results": results_data,
             "status": report.status,
             "version": report.version_number,
             "generated_at": timezone.now().isoformat(),

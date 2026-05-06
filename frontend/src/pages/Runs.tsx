@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message, Transfer, DatePicker, Tabs, Badge, Tooltip } from "antd";
+import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message, Transfer, DatePicker, Tabs, Badge, Tooltip, Popconfirm } from "antd";
 import type { TransferItem } from "antd/es/transfer";
-import { PlusOutlined, ReloadOutlined, EyeOutlined, ArrowRightOutlined, StepForwardOutlined, CheckCircleOutlined, PlayCircleOutlined, FileTextOutlined, MinusCircleOutlined } from "@ant-design/icons";
+import { PlusOutlined, ReloadOutlined, EyeOutlined, ArrowRightOutlined, StepForwardOutlined, CheckCircleOutlined, PlayCircleOutlined, FileTextOutlined, MinusCircleOutlined, DeleteOutlined } from "@ant-design/icons";
 import DashboardLayout from "../components/DashboardLayout";
 import { runsApi, samplesApi, panelsApi, instrumentsApi, stepsApi } from "../api";
 import type { Run, Sample, TestPanel, Instrument } from "../api/types";
@@ -10,6 +10,7 @@ import type { Dayjs } from "dayjs";
 
 const { Text } = Typography;
 const { TextArea } = Input;
+const { RangePicker } = DatePicker;
 
 const STATUS_COLORS: Record<string, string> = {
   PLANNED: "default", LIBRARY_PREP: "blue", SEQUENCING: "purple",
@@ -42,7 +43,7 @@ export default function Runs() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [panelFilter, setPanelFilter] = useState<string | null>(null);
-  const [dateFilter, setDateFilter] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<[string | null, string | null]>([null, null]);
 
   const fetchRuns = async () => {
     setTableLoading(true);
@@ -50,7 +51,8 @@ export default function Runs() {
       const params: Record<string, unknown> = {};
       if (statusFilter) params.status = statusFilter;
       if (panelFilter) params.panel = panelFilter;
-      if (dateFilter) params.planned_date = dateFilter;
+      if (dateRange[0]) params.planned_date__from = dateRange[0];
+      if (dateRange[1]) params.planned_date__to = dateRange[1];
       const res = await runsApi.list(params);
       setRuns(res.data.results ?? res.data);
     } catch {
@@ -60,12 +62,27 @@ export default function Runs() {
     }
   };
 
-  useEffect(() => { fetchRuns(); }, [statusFilter, panelFilter, dateFilter]);
+  useEffect(() => { fetchRuns(); }, [statusFilter, panelFilter, dateRange]);
+
+  const handleDelete = async (record: Run) => {
+    try {
+      await runsApi.delete(record.id);
+      message.success(`Deleted ${record.run_number}`);
+      fetchRuns();
+    } catch {
+      message.error("Failed to delete run");
+    }
+  };
 
   // ── Samples Transfer ───────────────────────────────────────
   const [availableSamples, setAvailableSamples] = useState<TransferItem[]>([]);
   const [selectedSamples, setSelectedSamples] = useState<string[]>([]);
   const [samplesLoading, setSamplesLoading] = useState(false);
+
+  // Sample detail map (for assignment table)
+  const [sampleDetailMap, setSampleDetailMap] = useState<Record<string, Sample>>({});
+  // Assignments: { sampleId: { well_position, index_sequence, pool_group, barcode } }
+  const [sampleAssignments, setSampleAssignments] = useState<Record<string, { well_position?: string; index_sequence?: string; pool_group?: string; barcode?: string }>>({});
 
   // ── Panels & Instruments ───────────────────────────────────────
   const [panels, setPanels] = useState<TestPanel[]>([]);
@@ -81,9 +98,12 @@ export default function Runs() {
       ]);
 
       const samples: Sample[] = (samplesRes.data.results ?? samplesRes.data) as Sample[];
+      const detailMap: Record<string, Sample> = {};
+      samples.forEach((s) => { detailMap[s.id] = s; });
+      setSampleDetailMap(detailMap);
       setAvailableSamples(samples.map((s) => ({
         key: s.id,
-        title: `${s.barcode} — ${s.patient_name || "N/A"}`,
+        title: `${s.sample_id} — ${s.patient_name || "N/A"}`,
         description: `Type: ${s.sample_type_code} | Received: ${s.receipt_date}`,
       })));
 
@@ -103,6 +123,7 @@ export default function Runs() {
     if (createOpen) {
       fetchCreateData();
       setSelectedSamples([]);
+      setSampleAssignments({});
     }
   }, [createOpen]);
 
@@ -114,6 +135,9 @@ export default function Runs() {
   const [stepForm] = Form.useForm();
   const [stepSubmitting, setStepSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState("matrix");
+  // Result entry state { runSampleId: { field: value } }
+  const [resultEntries, setResultEntries] = useState<Record<string, Record<string, unknown>>>({});
+  const [savingResults, setSavingResults] = useState(false);
 
   const fetchRunDetail = async (runId: string) => {
     setDetailLoading(true);
@@ -160,6 +184,17 @@ export default function Runs() {
     );
   };
 
+  // sample_id → Sample ID mapping for lookup
+  const sampleIdBySampleId = useMemo(() => {
+    const map: Record<string, string> = {};
+    (runDetail?.run_samples || []).forEach((rs: any) => {
+      if (rs.sample_barcode && rs.sample) {
+        map[rs.sample_barcode] = rs.sample;
+      }
+    });
+    return map;
+  }, [runDetail?.run_samples]);
+
   const handleStepStart = async (step: any) => {
     try {
       await stepsApi.start(step.id);
@@ -204,6 +239,114 @@ export default function Runs() {
     }
   };
 
+  const handleSaveResults = async () => {
+    if (!selectedRun || !runDetail) return;
+    setSavingResults(true);
+    try {
+      const results: Record<string, Record<string, unknown>> = {};
+      (runDetail.run_samples || []).forEach((rs: any) => {
+        const entry = resultEntries[rs.id];
+        if (entry && Object.keys(entry).length > 0) {
+          results[rs.id] = entry;
+        }
+      });
+      if (Object.keys(results).length === 0) {
+        message.warning("No results to save");
+        return;
+      }
+      await runsApi.updateResults(selectedRun.id, results);
+      message.success("Results saved");
+      setResultEntries({});
+      if (selectedRun) fetchRunDetail(selectedRun.id);
+    } catch (err: any) {
+      message.error(err?.response?.data?.detail || "Failed to save results");
+    } finally {
+      setSavingResults(false);
+    }
+  };
+
+  const resultColumns = useMemo(() => {
+    const makeInput = (key: string, placeholder: string, width = 100) => ({
+      title: placeholder,
+      key,
+      width,
+      render: (_: any, record: any) => (
+        <Input
+          size="small"
+          placeholder={placeholder}
+          value={String(resultEntries[record.id]?.[key] ?? record.result_summary?.[key] ?? "")}
+          onChange={(e) => setResultEntries((prev) => ({
+            ...prev,
+            [record.id]: { ...prev[record.id], [key]: e.target.value },
+          }))}
+        />
+      ),
+    });
+    const makeSelect = (key: string, placeholder: string, opts: {value: string; label: string}[], width = 120) => ({
+      title: placeholder,
+      key,
+      width,
+      render: (_: any, record: any) => (
+        <Select
+          size="small"
+          placeholder={placeholder}
+          value={resultEntries[record.id]?.[key] ?? record.result_summary?.[key] ?? undefined}
+          onChange={(v) => setResultEntries((prev) => ({
+            ...prev,
+            [record.id]: { ...prev[record.id], [key]: v },
+          }))}
+          options={opts}
+          allowClear
+          style={{ width }}
+        />
+      ),
+    });
+
+    const panelCode = runDetail?.panel_code;
+    const baseCols: any[] = [
+      { title: "Sample ID", dataIndex: "sample_barcode", key: "sample_id", width: 140, render: (t: string) => <Text strong>{t}</Text> },
+      { title: "Patient", dataIndex: "sample_patient_id", key: "patient", width: 120, render: (t: string) => t || "—" },
+    ];
+
+    if (panelCode === "HPV") {
+      return [
+        ...baseCols,
+        makeSelect("overall_result", "Result", [
+          { value: "NEGATIVE", label: "NEGATIVE" },
+          { value: "POSITIVE", label: "POSITIVE" },
+        ]),
+        makeSelect("hpv_16", "HPV16", [
+          { value: "NEGATIVE", label: "NEGATIVE" },
+          { value: "POSITIVE", label: "POSITIVE" },
+        ], 90),
+        makeSelect("hpv_18", "HPV18", [
+          { value: "NEGATIVE", label: "NEGATIVE" },
+          { value: "POSITIVE", label: "POSITIVE" },
+        ], 90),
+        makeInput("notes", "Notes", 150),
+      ];
+    }
+    if (panelCode === "NIPT") {
+      return [
+        ...baseCols,
+        makeSelect("result", "Result", [
+          { value: "LOW_RISK", label: "LOW RISK" },
+          { value: "HIGH_RISK", label: "HIGH RISK" },
+        ]),
+        makeInput("z_score_13", "Z-Score 13", 90),
+        makeInput("z_score_18", "Z-Score 18", 90),
+        makeInput("z_score_21", "Z-Score 21", 90),
+        makeInput("fetal_fraction", "FF %", 80),
+        makeSelect("fetal_sex", "Sex", [
+          { value: "Male", label: "Male" },
+          { value: "Female", label: "Female" },
+        ], 100),
+        makeInput("notes", "Notes", 150),
+      ];
+    }
+    return [...baseCols, makeInput("result_notes", "Result Notes", 200)];
+  }, [runDetail?.panel_code, resultEntries]);
+
   const matrixColumns = useMemo(() => {
     const baseCols: any[] = [
       {
@@ -238,7 +381,8 @@ export default function Runs() {
         width: 80,
         align: "center" as const,
         render: (_: unknown, record: any) => {
-          const s = getStepForSample(record.id, sid);
+          const sampleId = sampleIdBySampleId[record.sample_barcode] || record.sample;
+          const s = getStepForSample(sampleId, sid);
           const status = s?.status || "PENDING";
           const color = STEP_STATUS_COLORS[status] || "default";
           return (
@@ -274,6 +418,8 @@ export default function Runs() {
   const columns = [
     { title: "Run #", dataIndex: "run_number", key: "run_number", width: 200,
       render: (t: string) => <Text strong>{t}</Text> },
+    { title: "Barcode", dataIndex: "barcode", key: "barcode", width: 150,
+      render: (t: string) => t || <Text type="secondary">—</Text> },
     { title: "Panel", dataIndex: "panel_code", key: "panel_code", width: 120,
       render: (t: string) => <Tag color="blue">{t}</Tag> },
     { title: "Sequencer", dataIndex: "sequencer_name", key: "sequencer_name", width: 150,
@@ -293,7 +439,7 @@ export default function Runs() {
       render: (d: string) => d || "-",
     },
     {
-      title: "Actions", key: "actions", width: 240,
+      title: "Actions", key: "actions", width: 280,
       render: (_: unknown, record: Run) => {
         const canAdvance = record.status !== "COMPLETED" && record.status !== "FAILED";
         const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(record.status) + 1];
@@ -332,6 +478,15 @@ export default function Runs() {
                 Complete
               </Button>
             )}
+            <Popconfirm
+              title="Delete run?"
+              description={`This will delete ${record.run_number}. Confirm?`}
+              onConfirm={() => handleDelete(record)}
+              okText="Delete"
+              okButtonProps={{ danger: true }}
+            >
+              <Button icon={<DeleteOutlined />} size="small" type="text" danger />
+            </Popconfirm>
           </Space>
         );
       },
@@ -352,17 +507,22 @@ export default function Runs() {
       const payload: Record<string, unknown> = {
         panel: values.panel,
         samples: selectedSamples,
+        sample_assignments: sampleAssignments,
         planned_date: plannedDate,
         notes: values.notes || "",
       };
       if (values.sequencer) {
         payload.sequencer = values.sequencer;
       }
+      if (values.barcode) {
+        payload.barcode = values.barcode;
+      }
       await runsApi.create(payload);
       message.success("Run created successfully");
       setCreateOpen(false);
       form.resetFields();
       setSelectedSamples([]);
+      setSampleAssignments({});
       fetchRuns();
     } catch (err: any) {
       const detail = err?.response?.data;
@@ -399,12 +559,24 @@ export default function Runs() {
               value={panelFilter}
               onChange={(v) => setPanelFilter(v)}
             />
-            <DatePicker
-              placeholder="Planned date"
-              style={{ width: 140 }}
+            <RangePicker
+              placeholder={["From", "To"]}
+              style={{ width: 240 }}
               format="YYYY-MM-DD"
-              value={dateFilter ? dayjs(dateFilter) : null}
-              onChange={(d) => setDateFilter(d ? d.format("YYYY-MM-DD") : null)}
+              value={[
+                dateRange[0] ? dayjs(dateRange[0]) : null,
+                dateRange[1] ? dayjs(dateRange[1]) : null,
+              ]}
+              onChange={(dates) => {
+                if (dates && dates[0] && dates[1]) {
+                  setDateRange([
+                    dates[0].format("YYYY-MM-DD"),
+                    dates[1].format("YYYY-MM-DD"),
+                  ]);
+                } else {
+                  setDateRange([null, null]);
+                }
+              }}
               allowClear
             />
             <Button icon={<ReloadOutlined />} onClick={fetchRuns}>Refresh</Button>
@@ -452,6 +624,10 @@ export default function Runs() {
             />
           </Form.Item>
 
+          <Form.Item name="barcode" label="Run Barcode / Batch ID">
+            <Input placeholder="Optional barcode for this run (e.g. BATCH-20241201)" />
+          </Form.Item>
+
           <Form.Item name="planned_date" label="Planned Date">
             <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
           </Form.Item>
@@ -468,6 +644,43 @@ export default function Runs() {
               />
             )}
           </Form.Item>
+
+          {selectedSamples.length > 0 && (
+            <Form.Item label="Sample Configuration">
+              <Table
+                size="small"
+                pagination={false}
+                dataSource={selectedSamples.map((sid) => {
+                  const s = sampleDetailMap[sid];
+                  const a = sampleAssignments[sid] || {};
+                  return {
+                    sample_id: sid,
+                    barcode: a.barcode || s?.sample_id || sid.slice(0, 8),
+                    patient_name: s?.patient_name || "N/A",
+                    well_position: a.well_position || "",
+                    index_sequence: a.index_sequence || "",
+                    pool_group: a.pool_group || "",
+                  };
+                })}
+                rowKey="sample_id"
+                columns={[
+                  { title: "Barcode", dataIndex: "barcode", key: "barcode", width: 140, render: (_: any, r: any) => (
+                    <Input size="small" placeholder="Scan barcode" value={r.barcode} onChange={(e) => setSampleAssignments((prev) => ({ ...prev, [r.sample_id]: { ...prev[r.sample_id], barcode: e.target.value } }))} />
+                  )},
+                  { title: "Patient", dataIndex: "patient_name", key: "patient", width: 100, render: (t: string) => t || "—" },
+                  { title: "Well", dataIndex: "well_position", key: "well", width: 90, render: (_: any, r: any) => (
+                    <Input size="small" placeholder="A01" value={r.well_position} onChange={(e) => setSampleAssignments((prev) => ({ ...prev, [r.sample_id]: { ...prev[r.sample_id], well_position: e.target.value } }))} />
+                  )},
+                  { title: "Index", dataIndex: "index_sequence", key: "index", width: 130, render: (_: any, r: any) => (
+                    <Input size="small" placeholder="N701+S501" value={r.index_sequence} onChange={(e) => setSampleAssignments((prev) => ({ ...prev, [r.sample_id]: { ...prev[r.sample_id], index_sequence: e.target.value } }))} />
+                  )},
+                  { title: "Pool", dataIndex: "pool_group", key: "pool", width: 100, render: (_: any, r: any) => (
+                    <Input size="small" placeholder="Pool-A" value={r.pool_group} onChange={(e) => setSampleAssignments((prev) => ({ ...prev, [r.sample_id]: { ...prev[r.sample_id], pool_group: e.target.value } }))} />
+                  )},
+                ]}
+              />
+            </Form.Item>
+          )}
 
           <Form.Item name="notes" label="Notes">
             <TextArea rows={2} placeholder="Run notes..." />
@@ -548,7 +761,7 @@ export default function Runs() {
                   rowKey="id"
                   pagination={false}
                   columns={[
-                    { title: "Barcode", dataIndex: "sample_barcode", key: "barcode", render: (t: string) => <Text strong copyable={{ text: t }}>{t}</Text> },
+                    { title: "Sample ID", dataIndex: "sample_barcode", key: "sample_id", render: (t: string) => <Text strong copyable={{ text: t }}>{t}</Text> },
                     { title: "Patient ID", dataIndex: "sample_patient_id", key: "patient_id", render: (t: string) => t || "—" },
                     { title: "Well", dataIndex: "well_position", key: "well", width: 80, render: (t: string) => t || "—" },
                     { title: "Index", dataIndex: "index_sequence", key: "index", width: 120, render: (t: string) => t || "—" },
@@ -592,6 +805,53 @@ export default function Runs() {
                   ]}
                   locale={{ emptyText: "No workflow steps found" }}
                 />
+              ),
+            },
+            {
+              key: "results",
+              label: (
+                <span>
+                  Results
+                  <Badge count={samplesInRun.length} style={{ marginLeft: 8, backgroundColor: "#52c41a" }} />
+                </span>
+              ),
+              children: detailLoading ? (
+                <Text type="secondary">Loading results...</Text>
+              ) : (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Panel: <strong>{runDetail?.panel_code}</strong> — Enter test results for each sample
+                    </Text>
+                    <Button type="primary" size="small" loading={savingResults} onClick={handleSaveResults}>
+                      Save Results
+                    </Button>
+                  </div>
+                  <Table
+                    size="small"
+                    dataSource={samplesInRun}
+                    rowKey="id"
+                    pagination={false}
+                    scroll={{ x: 800 }}
+                    columns={[
+                      ...resultColumns,
+                      {
+                        title: "Saved Results",
+                        key: "saved",
+                        width: 120,
+                        render: (_: any, record: any) => {
+                          const hasResults = record.result_summary && Object.keys(record.result_summary).length > 0;
+                          return hasResults ? (
+                            <Tag color="green" style={{ fontSize: 10 }}>✓ Saved</Tag>
+                          ) : (
+                            <Tag color="default" style={{ fontSize: 10 }}>Unsaved</Tag>
+                          );
+                        },
+                      },
+                    ]}
+                    locale={{ emptyText: "No samples in this run" }}
+                  />
+                </div>
               ),
             },
           ]}

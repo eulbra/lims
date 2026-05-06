@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message, Tooltip } from "antd";
-import { PlusOutlined, SearchOutlined, ReloadOutlined, FileAddOutlined, CheckOutlined, CloseOutlined, PlayCircleOutlined } from "@ant-design/icons";
+import { Table, Card, Button, Space, Tag, Typography, Modal, Form, Select, Input, message, Tooltip, Popconfirm } from "antd";
+import { PlusOutlined, SearchOutlined, ReloadOutlined, FileAddOutlined, CheckOutlined, CloseOutlined, PlayCircleOutlined, DeleteOutlined } from "@ant-design/icons";
 import DashboardLayout from "../components/DashboardLayout";
 import { ordersApi, panelsApi, samplesApi } from "../api";
 import type { Order, TestPanel, Sample } from "../api/types";
@@ -79,6 +79,16 @@ export default function Orders() {
     });
   };
 
+  const handleDelete = async (record: Order) => {
+    try {
+      await ordersApi.delete(record.id);
+      message.success(`Deleted ${record.order_number}`);
+      fetch();
+    } catch {
+      message.error("Failed to delete order");
+    }
+  };
+
   const columns = [
     { title: "Order #", dataIndex: "order_number", key: "order_number", width: 160,
       render: (t: string) => <Text strong copyable={{ text: t }}>{t}</Text> },
@@ -94,7 +104,7 @@ export default function Orders() {
     { title: "Created", dataIndex: "created_at", key: "created_at", width: 150,
       render: (d: string) => d ? new Date(d).toLocaleDateString() : "-" },
     {
-      title: "Actions", key: "actions", width: 160,
+      title: "Actions", key: "actions", width: 200,
       render: (_: unknown, record: Order) => (
         <Space size="small">
           {record.status === "CREATED" && (
@@ -135,6 +145,17 @@ export default function Orders() {
                 }} />
             </Tooltip>
           )}
+          <Popconfirm
+            title="Delete order?"
+            description={`Delete ${record.order_number}?`}
+            onConfirm={() => handleDelete(record)}
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+          >
+            <Tooltip title="Delete">
+              <Button icon={<DeleteOutlined />} size="small" type="text" danger />
+            </Tooltip>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -224,7 +245,7 @@ export default function Orders() {
               onChange={handleSampleSelect}
               options={samples.map(s => ({
                 value: s.id,
-                label: `${s.barcode} — ${s.patient_name || "N/A"} (${s.sample_type_code})`,
+                label: `${s.sample_id} — ${s.patient_name || "N/A"} (${s.sample_type_code})`,
               }))}
               allowClear
             />

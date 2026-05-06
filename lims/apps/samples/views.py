@@ -12,6 +12,7 @@ from .serializers import (
     SampleSerializer, SampleListSerializer, SampleReceiveSerializer,
     SampleRejectSerializer, SampleMovementSerializer, SampleTypeSerializer, TestPanelSerializer,
 )
+from rest_framework import status
 from lims.core.permissions import IsSiteScoped
 
 
@@ -20,16 +21,23 @@ class SampleViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsSiteScoped]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["status", "sample_type", "receipt_date", "panel"]
-    search_fields = ["barcode", "patient_id", "patient_name"]
-    ordering_fields = ["receipt_date", "created_at", "barcode"]
+    # receipt_date range handled in get_queryset via custom filter
+    search_fields = ["sample_id", "patient_id", "patient_name"]
+    ordering_fields = ["receipt_date", "created_at", "sample_id"]
 
     def get_queryset(self):
         qs = Sample.objects.filter(is_deleted=False)
-        # 默认排除终态样本，除非明确指定了 status 过滤
+        # 默认排除终态样本，除非明确指定了了 status 过滤
         if "status" not in self.request.query_params:
             qs = qs.exclude(status__in=["REJECTED", "ARCHIVED", "DISPOSED"])
         if self.request.user.site_id:
             qs = qs.filter(site=self.request.user.site)
+        # Date range filters
+        params = self.request.query_params
+        if "receipt_date__from" in params:
+            qs = qs.filter(receipt_date__gte=params["receipt_date__from"])
+        if "receipt_date__to" in params:
+            qs = qs.filter(receipt_date__lte=params["receipt_date__to"])
         return qs.select_related("sample_type", "site").prefetch_related("movements", "run_samples")
 
     def get_serializer_class(self):
@@ -70,7 +78,7 @@ class SampleViewSet(viewsets.ModelViewSet):
             sample=sample, to_location="REJECTED",
             reason="REJECTION", performed_by=request.user,
         )
-        return Response({"status": "REJECTED", "barcode": sample.barcode})
+        return Response({"status": "REJECTED", "sample_id": sample.sample_id})
 
     @action(detail=True, methods=["post"])
     def accept(self, request, pk=None):
@@ -78,7 +86,7 @@ class SampleViewSet(viewsets.ModelViewSet):
         sample = self.get_object()
         sample.status = "ACCEPTED"
         sample.save(update_fields=["status", "updated_at"])
-        return Response({"status": "ACCEPTED", "barcode": sample.barcode})
+        return Response({"status": "ACCEPTED", "sample_id": sample.sample_id})
 
     @action(detail=True, methods=["post"])
     def move(self, request, pk=None):
@@ -102,6 +110,13 @@ class SampleViewSet(viewsets.ModelViewSet):
             "total_rejected_today": qs.filter(receipt_date=today, status="REJECTED").count(),
         }
         return Response(stats)
+
+    def destroy(self, request, *args, **kwargs):
+        """Soft-delete sample."""
+        sample = self.get_object()
+        sample.is_deleted = True
+        sample.save(update_fields=["is_deleted", "updated_at"])
+        return Response({"detail": "Sample deleted."}, status=status.HTTP_204_NO_CONTENT)
 
 
 class SampleTypeViewSet(viewsets.ReadOnlyModelViewSet):

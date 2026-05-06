@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Table, Card, Space, Tag, Typography, Input, Alert, Button, message } from "antd";
-import { SearchOutlined, ReloadOutlined, WarningOutlined, PlusOutlined } from "@ant-design/icons";
+import { Table, Card, Space, Tag, Typography, Input, Alert, Button, message, Popconfirm } from "antd";
+import { SearchOutlined, ReloadOutlined, WarningOutlined, PlusOutlined, DeleteOutlined } from "@ant-design/icons";
 import DashboardLayout from "../components/DashboardLayout";
 import { reagentsApi } from "../api";
 import type { ReagentLot } from "../api/types";
@@ -28,6 +28,16 @@ export default function Reagents() {
     }
   };
 
+  const handleDelete = async (record: ReagentLot) => {
+    try {
+      await reagentsApi.delete(record.id);
+      message.success(`Deleted ${record.reagent_name} — ${record.lot_number}`);
+      fetchLots();
+    } catch {
+      message.error("Failed to delete reagent lot");
+    }
+  };
+
   useEffect(() => { fetchLots(); }, []);
 
   const nearExpiry = lots.filter(l =>
@@ -49,6 +59,20 @@ export default function Reagents() {
         const color = daysLeft <= 0 ? "red" : daysLeft <= 30 ? "orange" : "inherit";
         return <span style={{ color }}>{d} ({daysLeft > 0 ? daysLeft + "d" : "EXPIRED"})</span>;
       },
+    },
+    {
+      title: "Actions", key: "actions", width: 100,
+      render: (_: unknown, record: ReagentLot) => (
+        <Popconfirm
+          title="Delete lot?"
+          description={`Delete ${record.reagent_name} — ${record.lot_number}?`}
+          onConfirm={() => handleDelete(record)}
+          okText="Delete"
+          okButtonProps={{ danger: true }}
+        >
+          <Button icon={<DeleteOutlined />} size="small" type="text" danger />
+        </Popconfirm>
+      ),
     },
   ];
 

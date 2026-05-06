@@ -58,7 +58,7 @@ class TestPanel(models.Model):
 class Sample(models.Model):
     """Main sample record."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    barcode = models.CharField(max_length=50, unique=True, db_index=True)
+    sample_id = models.CharField(max_length=50, unique=True, db_index=True)
     additional_barcodes = models.JSONField(default=list, blank=True)
     sample_type = models.ForeignKey(SampleType, on_delete=models.PROTECT)
     patient_id = models.CharField(max_length=50, blank=True, db_index=True)
@@ -117,7 +117,7 @@ class Sample(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.barcode} ({self.status})"
+        return f"{self.sample_id} ({self.status})"
 
 
 class SampleMovement(models.Model):
@@ -136,7 +136,7 @@ class SampleMovement(models.Model):
         ordering = ["performed_at"]
 
     def __str__(self):
-        return f"{self.sample.barcode}: {self.from_location} → {self.to_location}"
+        return f"{self.sample.sample_id}: {self.from_location} → {self.to_location}"
 
 
 class SampleAliquot(models.Model):
@@ -146,7 +146,7 @@ class SampleAliquot(models.Model):
     child_sample = models.ForeignKey(Sample, on_delete=models.CASCADE, related_name="parent_of")
     aliquot_type = models.CharField(max_length=50)  # 'PLASMA', 'EXTRACTED_DNA', 'LIBRARY'
     volume_ml = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
-    barcode = models.CharField(max_length=50, unique=True)
+    sample_id = models.CharField(max_length=50, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

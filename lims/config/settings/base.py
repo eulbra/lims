@@ -57,6 +57,7 @@ LOCAL_APPS = [
     "lims.apps.documents",
     "lims.apps.training",
     "lims.apps.quality",
+    "lims.apps.regulatory",
     "lims.apps.audit",
     "lims.apps.notifications",
 ]

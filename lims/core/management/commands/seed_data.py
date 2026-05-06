@@ -195,7 +195,7 @@ class Command(BaseCommand):
 
             barcode = f"{panel_code[:4].upper()}-2026-{i+1:04d}"
             sample, created = Sample.objects.get_or_create(
-                barcode=barcode,
+                sample_id=sample_id,
                 defaults={
                     "sample_type": st,
                     "patient_id": f"PT-{2026000 + i + 1}",

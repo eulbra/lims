@@ -54,6 +54,7 @@ class SampleRun(models.Model):
     end_date = models.DateTimeField(null=True, blank=True)
     operator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True)
     site = models.ForeignKey("organizations.Site", on_delete=models.PROTECT, related_name="runs")
+    barcode = models.CharField(max_length=50, blank=True, db_index=True)  # Run-level barcode / batch ID
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -76,6 +77,7 @@ class RunSample(models.Model):
     index_sequence = models.CharField(max_length=50, blank=True)  # UDI combo
     index_combo_id = models.CharField(max_length=20, blank=True)
     pool_group = models.CharField(max_length=20, blank=True)
+    barcode = models.CharField(max_length=50, blank=True)  # Library/barcode for this run
     status = models.CharField(
         max_length=20,
         default="QUEUED",
@@ -93,7 +95,7 @@ class RunSample(models.Model):
         unique_together = [["run", "sample"]]
 
     def __str__(self):
-        return f"{self.run.run_number} - {self.sample.barcode}"
+        return f"{self.run.run_number} - {self.sample.sample_id}"
 
 
 class WorkflowStep(models.Model):

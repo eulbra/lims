@@ -52,7 +52,7 @@ export interface Site {
 
 export interface Sample {
   id: string;
-  barcode: string;
+  sample_id: string;
   patient_id: string;
   patient_name: string;
   status: string;

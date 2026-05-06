@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Table, Card, Space, Tag, Typography, Input, Modal, message, Popconfirm, Button, Descriptions, Divider } from "antd";
-import { SearchOutlined, EyeOutlined, CheckCircleOutlined, SendOutlined, FileProtectOutlined, EditOutlined, ReloadOutlined, DownloadOutlined } from "@ant-design/icons";
+import { SearchOutlined, EyeOutlined, CheckCircleOutlined, SendOutlined, FileProtectOutlined, EditOutlined, ReloadOutlined, DownloadOutlined, DeleteOutlined } from "@ant-design/icons";
 import DashboardLayout from "../components/DashboardLayout";
 import { reportsApi } from "../api";
 import type { Report } from "../api/types";
@@ -109,6 +109,16 @@ export default function Reports() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      await reportsApi.delete(id);
+      message.success("Report deleted");
+      fetchReports();
+    } catch (err: any) {
+      message.error(err?.response?.data?.error || "Delete failed");
+    }
+  };
+
   const filtered = data.filter((r) =>
     searchText
       ? r.report_number.toLowerCase().includes(searchText.toLowerCase())
@@ -168,6 +178,9 @@ export default function Reports() {
                 <Button icon={<SendOutlined />} size="small" type="text" style={{ color: "#fa8c16" }} title="Release" />
               </Popconfirm>
             )}
+            <Popconfirm title="Delete this report permanently?" onConfirm={() => handleDelete(record.id)}>
+              <Button icon={<DeleteOutlined />} size="small" type="text" danger title="Delete" />
+            </Popconfirm>
           </Space>
         );
       },
@@ -245,6 +258,25 @@ export default function Reports() {
             {viewReport.content && Object.keys(viewReport.content).length > 0 ? (
               <>
                 <Divider orientation="left">Report Content</Divider>
+                {viewReport.content.results && Object.keys(viewReport.content.results).length > 0 ? (
+                  <>
+                    <Divider orientation="left" style={{ fontWeight: 700, color: "#1677ff" }}>Test Results</Divider>
+                    <Descriptions size="small" bordered column={2} style={{ marginBottom: 16 }}>
+                      {Object.entries(viewReport.content.results).map(([k, v]) => (
+                        <Descriptions.Item
+                          key={k}
+                          label={String(k).replace(/_/g, " ").toUpperCase()}
+                          labelStyle={{ fontWeight: 600 }}
+                        >
+                          <Tag color={v === "POSITIVE" || v === "HIGH_RISK" ? "red" : v === "NEGATIVE" || v === "LOW_RISK" ? "green" : "default"}>
+                            {String(v)}
+                          </Tag>
+                        </Descriptions.Item>
+                      ))}
+                    </Descriptions>
+                  </>
+                ) : null}
+                <Divider orientation="left" style={{ fontSize: 12 }}>Raw Data</Divider>
                 <pre style={{ background: "#f6ffed", padding: 12, borderRadius: 6, maxHeight: 400, overflow: "auto", fontSize: 12 }}>
                   {JSON.stringify(viewReport.content, null, 2)}
                 </pre>

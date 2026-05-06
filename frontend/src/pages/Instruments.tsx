@@ -1,5 +1,5 @@
-import { Table, Card, Button, Space, Tag, Typography, Input, message } from "antd";
-import { SearchOutlined, PlusOutlined, ReloadOutlined, ToolOutlined } from "@ant-design/icons";
+import { Table, Card, Button, Space, Tag, Typography, Input, message, Popconfirm } from "antd";
+import { SearchOutlined, PlusOutlined, ReloadOutlined, ToolOutlined, DeleteOutlined } from "@ant-design/icons";
 import { instrumentsApi } from "../api";
 import type { Instrument } from "../api/types";
 import { usePaginated } from "../hooks/useList";
@@ -14,6 +14,16 @@ export default function Instruments() {
       instrumentsApi.list({ page, size, search }),
     { autoFetch: true }
   );
+
+  const handleDelete = async (record: Instrument) => {
+    try {
+      await instrumentsApi.delete(record.id);
+      message.success(`Deleted ${record.name}`);
+      fetch();
+    } catch {
+      message.error("Failed to delete instrument");
+    }
+  };
 
   const STATUS_COLORS: Record<string, string> = {
     ACTIVE: "green", MAINTENANCE: "orange", OUT_OF_SERVICE: "red", RETIRED: "default",
@@ -30,6 +40,20 @@ export default function Instruments() {
     { title: "Location", dataIndex: "location", key: "location", width: 100 },
     { title: "Status", dataIndex: "status", key: "status", width: 140,
       render: (s: string) => <Tag color={STATUS_COLORS[s]}>{s.replace(/_/g, " ")}</Tag> },
+    {
+      title: "Actions", key: "actions", width: 100,
+      render: (_: unknown, record: Instrument) => (
+        <Popconfirm
+          title="Delete instrument?"
+          description={`Delete ${record.name}?`}
+          onConfirm={() => handleDelete(record)}
+          okText="Delete"
+          okButtonProps={{ danger: true }}
+        >
+          <Button icon={<DeleteOutlined />} size="small" type="text" danger />
+        </Popconfirm>
+      ),
+    },
   ];
 
   return (
@@ -56,7 +80,7 @@ export default function Instruments() {
           dataSource={items}
           rowKey="id"
           loading={loading}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1100 }}
           pagination={{
             current: 1,
             pageSize: 50,

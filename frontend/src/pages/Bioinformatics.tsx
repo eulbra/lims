@@ -8,7 +8,7 @@ import {
   ReloadOutlined, PlayCircleOutlined,
   CheckCircleOutlined, CloseCircleOutlined, SyncOutlined,
   LineChartOutlined, BugOutlined, ClockCircleOutlined,
-  ThunderboltOutlined,
+  ThunderboltOutlined, DeleteOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import api from "../api/client";
@@ -98,6 +98,16 @@ function PipelinesTab() {
 
   useEffect(() => { fetch(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleDeletePipeline = async (id: string) => {
+    try {
+      await api.delete(`/bioinformatics/pipelines/${id}/`);
+      message.success("流水线已删除");
+      fetch();
+    } catch {
+      message.error("删除流水线失败");
+    }
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
@@ -112,9 +122,14 @@ function PipelinesTab() {
               size="small"
               title={`${p.name} (${p.version})`}
               extra={
-                <Tag color={p.is_active ? "green" : "default"}>
-                  {p.is_active ? "激活" : "停用"}
-                </Tag>
+                <Space size="small">
+                  <Tag color={p.is_active ? "green" : "default"}>
+                    {p.is_active ? "激活" : "停用"}
+                  </Tag>
+                  <Popconfirm title="确定删除此流水线？" onConfirm={() => handleDeletePipeline(p.id)}>
+                    <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+                  </Popconfirm>
+                </Space>
               }
             >
               <Descriptions size="small" column={1}>
@@ -184,6 +199,16 @@ function JobsTab() {
       fetch();
     } catch {
       message.error("操作失败");
+    }
+  };
+
+  const handleDeleteJob = async (id: string) => {
+    try {
+      await api.delete(`/bioinformatics/jobs/${id}/`);
+      message.success("分析任务已删除");
+      fetch();
+    } catch {
+      message.error("删除分析任务失败");
     }
   };
 
@@ -295,6 +320,9 @@ function JobsTab() {
                     </Popconfirm>
                   </>
                 )}
+                <Popconfirm title="确定删除此分析任务？" onConfirm={() => handleDeleteJob(r.id)}>
+                  <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+                </Popconfirm>
               </Space>
             ),
           },

@@ -43,6 +43,7 @@ export const samplesApi = {
     }),
   accept: (id: string) =>
     api.post(`/samples/${id}/accept/`),
+  delete: (id: string) => api.delete(`/samples/${id}/`),
   stats: () => api.get<SampleStats>("/samples/stats/"),
 };
 
@@ -58,6 +59,9 @@ export const runsApi = {
     api.post(`/runs/${id}/advance_status/`, { status }),
   addSamples: (id: string, sample_ids: string[]) =>
     api.post(`/runs/${id}/add_samples/`, { sample_ids }),
+  updateResults: (id: string, results: Record<string, Record<string, unknown>>) =>
+    api.post(`/runs/${id}/update_results/`, { results }),
+  delete: (id: string) => api.delete(`/runs/${id}/`),
   stats: () => api.get<RunStats>("/runs/stats/"),
 };
 
@@ -92,6 +96,7 @@ export const reportsApi = {
   generate: (id: string) => api.post<Report>(`/reports/${id}/generate/`),
   download: (id: string) =>
     api.get(`/reports/${id}/download/`, { responseType: "blob" }),
+  delete: (id: string) => api.delete(`/reports/${id}/`),
 };
 
 // ── QC ────────────────────────────────────────────────────────
@@ -101,18 +106,21 @@ export const qcApi = {
     api.get<Pageable<QCControlMaterial>>("/qc/control-materials/", { params }),
   createMaterial: (data: Record<string, unknown>) =>
     api.post<QCControlMaterial>("/qc/control-materials/", data),
+  deleteMaterial: (id: string) => api.delete(`/qc/control-materials/${id}/`),
 
   // QC Runs
   listRuns: (params?: Record<string, unknown>) =>
     api.get<Pageable<QCRun>>("/qc/runs/", { params }),
   createRun: (data: Record<string, unknown>) =>
     api.post<QCRun>("/qc/runs/", data),
+  deleteRun: (id: string) => api.delete(`/qc/runs/${id}/`),
 
   // QC Charts (Levey-Jennings)
   listCharts: (params?: Record<string, unknown>) =>
     api.get<Pageable<QCChart>>("/qc/charts/", { params }),
   getChart: (id: string) =>
     api.get<QCChart>(`/qc/charts/${id}/`),
+  deleteChart: (id: string) => api.delete(`/qc/charts/${id}/`),
 
   // QC Events (CAPA)
   listEvents: (params?: Record<string, unknown>) =>
@@ -121,6 +129,7 @@ export const qcApi = {
     api.post<QCEvent>("/qc/events/", data),
   updateEventStatus: (id: string, status: string, extra?: Record<string, unknown>) =>
     api.post(`/qc/events/${id}/update_status/`, { status, ...extra }),
+  deleteEvent: (id: string) => api.delete(`/qc/events/${id}/`),
 };
 
 // ── Panels, Instruments, Reagents ─────────────────────────────
@@ -131,6 +140,9 @@ export const panelsApi = {
 export const instrumentsApi = {
   list: (params?: Record<string, unknown>) =>
     api.get<Pageable<Instrument>>("/instruments/", { params }),
+  create: (data: Record<string, unknown>) =>
+    api.post<Instrument>("/instruments/", data),
+  delete: (id: string) => api.delete(`/instruments/${id}/`),
 };
 
 export const reagentsApi = {
@@ -138,6 +150,7 @@ export const reagentsApi = {
     api.get<Pageable<ReagentLot>>("/reagents/lots/", { params }),
   create: (data: Record<string, unknown>) =>
     api.post<ReagentLot>("/reagents/lots/", data),
+  delete: (id: string) => api.delete(`/reagents/lots/${id}/`),
   expiring: (days = 30) =>
     api.get<ReagentLot[]>(`/reagents/lots/expiring/?days=${days}`),
 };
@@ -152,4 +165,5 @@ export const ordersApi = {
   submit: (id: string) => api.post(`/orders/${id}/submit/`),
   complete: (id: string) => api.post(`/orders/${id}/complete/`),
   cancel: (id: string) => api.post(`/orders/${id}/cancel/`),
+  delete: (id: string) => api.delete(`/orders/${id}/`),
 };

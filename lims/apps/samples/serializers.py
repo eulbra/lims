@@ -26,7 +26,7 @@ class SampleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sample
         fields = [
-            "id", "barcode", "additional_barcodes", "sample_type", "sample_type_id",
+            "id", "sample_id", "additional_barcodes", "sample_type", "sample_type_id",
             "patient_id", "patient_name", "patient_dob", "patient_sex",
             "ordering_physician", "ordering_facility",
             "collection_date", "collection_time",
@@ -36,7 +36,7 @@ class SampleSerializer(serializers.ModelSerializer):
             "site", "site_id", "created_by", "created_at", "updated_at", "is_deleted",
             "movements_count",
         ]
-        read_only_fields = ["barcode", "transport_time_days", "status", "site", "created_by", "movements_count"]
+        read_only_fields = ["sample_id", "transport_time_days", "status", "site", "created_by", "movements_count"]
 
     def get_site_id(self, obj):
         return str(obj.site_id) if obj.site else None
@@ -49,8 +49,8 @@ class SampleSerializer(serializers.ModelSerializer):
         validated_data["created_by"] = user
         user_site = getattr(user, 'site', None)
         validated_data["site"] = user_site if user_site else self._get_default_site()
-        if not validated_data.get("barcode"):
-            validated_data["barcode"] = self._generate_barcode()
+        if not validated_data.get("sample_id"):
+            validated_data["sample_id"] = self._generate_sample_id()
         return super().create(validated_data)
 
     def _generate_barcode(self):
@@ -74,7 +74,7 @@ class SampleListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Sample
-        fields = ["id", "barcode", "sample_type_code", "patient_id", "patient_name", "status",
+        fields = ["id", "sample_id", "sample_type_code", "patient_id", "patient_name", "status",
                    "receipt_date", "collection_date", "panel_info", "created_at",
                    "ordering_physician", "ordering_facility"]
 
@@ -124,8 +124,8 @@ class SampleReceiveSerializer(serializers.ModelSerializer):
         if "receipt_time" not in validated_data or validated_data.get("receipt_time") is None:
             validated_data["receipt_time"] = now.time()
 
-        # Auto-generate barcode
-        validated_data["barcode"] = self._generate_barcode()
+        # Auto-generate sample_id
+        validated_data["sample_id"] = self._generate_sample_id()
 
         # Set site from user
         user_site = getattr(user, 'site', None)
@@ -172,5 +172,5 @@ class SampleMovementSerializer(serializers.ModelSerializer):
 class SampleAliquotSerializer(serializers.ModelSerializer):
     class Meta:
         model = SampleAliquot
-        fields = ["id", "parent_sample", "child_sample", "aliquot_type", "volume_ml", "barcode", "created_at"]
+        fields = ["id", "parent_sample", "child_sample", "aliquot_type", "volume_ml", "sample_id", "created_at"]
         read_only_fields = ["created_at"]
