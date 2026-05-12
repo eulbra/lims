@@ -7,7 +7,7 @@ import {
   ExperimentOutlined, FileTextOutlined, SafetyCertificateOutlined,
   ToolOutlined, MedicineBoxOutlined, BookOutlined,
   TeamOutlined, CloudServerOutlined, AuditOutlined,
-  BellOutlined,
+  BellOutlined, EnvironmentOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined,
   UserOutlined, LogoutOutlined, SettingOutlined,
 } from "@ant-design/icons";
@@ -46,6 +46,11 @@ const MENU_ITEMS = [
     ],
   },
   { key: "/bioinformatics", icon: <CloudServerOutlined />,     label: "Bioinformatics" },
+  // Storage & Labels
+  { key: "/storage",  icon: <EnvironmentOutlined />,   label: "Storage" },
+  { key: "/barcodes", icon: <BarcodeOutlined />,       label: "Barcodes" },
+  { key: "/library",  icon: <CloudServerOutlined />,   label: "Library Index" },
+  { key: "/common",   icon: <BookOutlined />,          label: "Notes & Files" },
   // Audit & Notifications
   { key: "/audit",          icon: <AuditOutlined />,              label: "Audit Log" },
   { key: "/notifications",  icon: <BellOutlined />,               label: "Notifications" },

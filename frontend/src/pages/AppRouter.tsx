@@ -21,6 +21,10 @@ const Quality         = lazy(() => import("./Quality"));
 const AuditLog        = lazy(() => import("./AuditLog"));
 const Notifications   = lazy(() => import("./Notifications"));
 const Protocols       = lazy(() => import("./Protocols"));
+const Storage         = lazy(() => import("./Storage"));
+const Barcodes        = lazy(() => import("./Barcodes"));
+const Library         = lazy(() => import("./Library"));
+const Common          = lazy(() => import("./Common"));
 
 // Loading fallback
 const PageLoading = () => (
@@ -68,6 +72,11 @@ export default function AppRouter() {
         <Route path="/notifications"     element={<Protected><Notifications /></Protected>} />
 
         <Route path="/protocols"     element={<Protected><Protocols /></Protected>} />
+
+        <Route path="/storage"      element={<Protected><Storage /></Protected>} />
+        <Route path="/barcodes"     element={<Protected><Barcodes /></Protected>} />
+        <Route path="/library"      element={<Protected><Library /></Protected>} />
+        <Route path="/common"       element={<Protected><Common /></Protected>} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -60,6 +60,10 @@ LOCAL_APPS = [
     "lims.apps.regulatory",
     "lims.apps.audit",
     "lims.apps.notifications",
+    "lims.apps.storage",
+    "lims.apps.barcodes",
+    "lims.apps.library",
+    "lims.apps.common",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

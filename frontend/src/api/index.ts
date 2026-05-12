@@ -4,6 +4,8 @@ import type {
   Run, RunStats, Report, TestPanel, Order,
   Instrument, ReagentLot, Pageable,
   QCControlMaterial, QCRun, QCChart, QCEvent,
+  StorageLocation, Box, BarcodePrinter, BarcodeLabel,
+  IndexFamily, Index, LibraryDesign, Attachment, Note,
 } from "./types";
 
 // ── Auth ─────────────────────────────────────────────────────
@@ -166,4 +168,73 @@ export const ordersApi = {
   complete: (id: string) => api.post(`/orders/${id}/complete/`),
   cancel: (id: string) => api.post(`/orders/${id}/cancel/`),
   delete: (id: string) => api.delete(`/orders/${id}/`),
+};
+
+// ── Storage ──────────────────────────────────────────────────
+export const storageApi = {
+  listLocations: (params?: Record<string, unknown>) =>
+    api.get<Pageable<StorageLocation>>("/storage/locations/", { params }),
+  createLocation: (data: Record<string, unknown>) =>
+    api.post<StorageLocation>("/storage/locations/", data),
+  deleteLocation: (id: string) => api.delete(`/storage/locations/${id}/`),
+  listBoxes: (params?: Record<string, unknown>) =>
+    api.get<Pageable<Box>>("/storage/boxes/", { params }),
+  createBox: (data: Record<string, unknown>) =>
+    api.post<Box>("/storage/boxes/", data),
+  getBox: (id: string) => api.get<Box>(`/storage/boxes/${id}/`),
+  placeSample: (boxId: string, positionId: string, sampleId?: string) =>
+    api.post(`/storage/boxes/${boxId}/place-sample/`, { position_id: positionId, sample_id: sampleId || null }),
+  deleteBox: (id: string) => api.delete(`/storage/boxes/${id}/`),
+};
+
+// ── Barcodes ─────────────────────────────────────────────────
+export const barcodesApi = {
+  listPrinters: (params?: Record<string, unknown>) =>
+    api.get<Pageable<BarcodePrinter>>("/barcodes/printers/", { params }),
+  createPrinter: (data: Record<string, unknown>) =>
+    api.post<BarcodePrinter>("/barcodes/printers/", data),
+  testPrint: (id: string) => api.post(`/barcodes/printers/${id}/test-print/`),
+  deletePrinter: (id: string) => api.delete(`/barcodes/printers/${id}/`),
+  listLabels: (params?: Record<string, unknown>) =>
+    api.get<Pageable<BarcodeLabel>>("/barcodes/labels/", { params }),
+  createLabel: (data: Record<string, unknown>) =>
+    api.post<BarcodeLabel>("/barcodes/labels/", data),
+  batchPrint: (data: Record<string, unknown>) =>
+    api.post("/barcodes/labels/batch-print/", data),
+  deleteLabel: (id: string) => api.delete(`/barcodes/labels/${id}/`),
+};
+
+// ── Library ──────────────────────────────────────────────────
+export const libraryApi = {
+  listIndexFamilies: (params?: Record<string, unknown>) =>
+    api.get<Pageable<IndexFamily>>("/library/index-families/", { params }),
+  createIndexFamily: (data: Record<string, unknown>) =>
+    api.post<IndexFamily>("/library/index-families/", data),
+  addIndex: (familyId: string, data: Record<string, unknown>) =>
+    api.post<Index>(`/library/index-families/${familyId}/add-index/`, data),
+  deleteIndexFamily: (id: string) => api.delete(`/library/index-families/${id}/`),
+  listIndices: (params?: Record<string, unknown>) =>
+    api.get<Pageable<Index>>("/library/indices/", { params }),
+  deleteIndex: (id: string) => api.delete(`/library/indices/${id}/`),
+  listDesigns: (params?: Record<string, unknown>) =>
+    api.get<Pageable<LibraryDesign>>("/library/designs/", { params }),
+  createDesign: (data: Record<string, unknown>) =>
+    api.post<LibraryDesign>("/library/designs/", data),
+  deleteDesign: (id: string) => api.delete(`/library/designs/${id}/`),
+};
+
+// ── Common (Attachments / Notes) ─────────────────────────────
+export const attachmentsApi = {
+  list: (params?: Record<string, unknown>) =>
+    api.get<Pageable<Attachment>>("/common/attachments/", { params }),
+  create: (data: FormData) =>
+    api.post<Attachment>("/common/attachments/", data, { headers: { "Content-Type": "multipart/form-data" } }),
+  delete: (id: string) => api.delete(`/common/attachments/${id}/`),
+};
+export const notesApi = {
+  list: (params?: Record<string, unknown>) =>
+    api.get<Pageable<Note>>("/common/notes/", { params }),
+  create: (data: Record<string, unknown>) =>
+    api.post<Note>("/common/notes/", data),
+  delete: (id: string) => api.delete(`/common/notes/${id}/`),
 };

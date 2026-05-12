@@ -242,3 +242,84 @@ export interface ReagentLot {
   remaining: number;
   unit: string;
 }
+
+// ── Storage ─────────────────────────────────────────
+export interface StorageLocation {
+  id: string;
+  name: string;
+  location_type: string;
+  barcode: string;
+  parent: string | null;
+  parent_name: string | null;
+  site: string;
+  description: string;
+  is_active: boolean;
+  box_count: number;
+  created_at: string;
+  updated_at: string;
+}
+export interface Box {
+  id: string;
+  name: string;
+  barcode: string;
+  box_size: string;
+  storage_location: string | null;
+  storage_location_name: string | null;
+  site: string;
+  description: string;
+  positions: BoxPosition[];
+  occupied_count: number;
+  created_at: string;
+  updated_at: string;
+}
+export interface BoxPosition {
+  id: string;
+  box: string;
+  row: string;
+  col: number;
+  position_label: string;
+  sample: string | null;
+  sample_barcode: string | null;
+  occupied_at: string | null;
+}
+
+// ── Barcode ─────────────────────────────────────────
+export interface BarcodePrinter {
+  id: string; name: string; printer_type: string; ip_address: string;
+  port: number; label_width_mm: number; label_height_mm: number; dpi: number;
+  site: string; is_active: boolean; created_at: string;
+}
+export interface BarcodeLabel {
+  id: string; barcode: string; label_type: string; content_type: string;
+  object_id: string; printer: string | null; printed_by: string | null;
+  printed_by_name: string | null; printed_at: string | null; copies: number;
+  site: string; created_at: string;
+}
+
+// ── Library ─────────────────────────────────────────
+export interface IndexFamily {
+  id: string; name: string; platform: string; index_type: string;
+  site: string; is_active: boolean; indices: Index[]; index_count: number; created_at: string;
+}
+export interface Index {
+  id: string; family: string; name: string; sequence: string;
+  index_position: string; is_active: boolean; created_at: string;
+}
+export interface LibraryDesign {
+  id: string; name: string; design_code: string; index_family: string | null;
+  index_family_name: string | null; selection_type: string; strategy_type: string;
+  description: string; site: string; is_active: boolean; created_at: string;
+}
+
+// ── Attachment / Note ──────────────────────────────
+export interface Attachment {
+  id: string; file: string; filename: string; file_size: number;
+  content_type_str: string; content_type: number; object_id: string;
+  category: string; description: string; uploaded_by: string | null;
+  uploaded_by_name: string | null; site: string; created_at: string;
+}
+export interface Note {
+  id: string; content_type: number; object_id: string; text: string;
+  author: string | null; author_name: string | null; site: string;
+  is_internal: boolean; created_at: string; updated_at: string;
+}

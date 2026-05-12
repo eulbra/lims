@@ -32,6 +32,10 @@ api_v1_patterns = [
     path("notifications/", include("lims.apps.notifications.urls", namespace="notifications")),
     path("quality/", include("lims.apps.quality.urls", namespace="quality")),
     path("regulatory/", include("lims.apps.regulatory.urls", namespace="regulatory")),
+    path("storage/", include("lims.apps.storage.urls", namespace="storage")),
+    path("barcodes/", include("lims.apps.barcodes.urls", namespace="barcodes")),
+    path("library/", include("lims.apps.library.urls", namespace="library")),
+    path("common/", include("lims.apps.common.urls", namespace="common")),
 ]
 
 urlpatterns = [
